@@ -779,8 +779,27 @@ body.playback-paused .vinyl-disc {
 }
 
 .crp-track-info {
-  text-align: center;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   min-width: 0;
+}
+
+.crp-track-text {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+
+.crp-btn.crp-like {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 6px;
+}
+
+.crp-btn.crp-like.active {
+  color: var(--lyrics-accent, #1ed760);
 }
 
 /* Inline crp-link styling — inherit color, no default underline */

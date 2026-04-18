@@ -26,6 +26,10 @@
       '<path d="M9.741.85a.75.75 0 0 1 .375.65v13a.75.75 0 0 1-1.125.65L5.031 12H2.25A2.25 2.25 0 0 1 0 9.75v-3.5A2.25 2.25 0 0 1 2.25 4h2.781L8.99.2a.75.75 0 0 1 .75.65zm2.325 2.85a5 5 0 0 1 0 8.6l-.75-1.3a3.5 3.5 0 0 0 0-6l.75-1.3z"/>',
     "volume-off":
       '<path d="M9.741.85a.75.75 0 0 1 .375.65v13a.75.75 0 0 1-1.125.65L5.031 12H2.25A2.25 2.25 0 0 1 0 9.75v-3.5A2.25 2.25 0 0 1 2.25 4h2.781L8.99.2a.75.75 0 0 1 .75.65zM12 6.04l1.5 1.5 1.46-1.5L16 7.04l-1.5 1.5 1.5 1.46-1.04 1.04L13.5 9.54 12 11l-1.04-1.04 1.5-1.46-1.5-1.5L12 6.04z"/>',
+    heart:
+      '<path d="M1.69 2A4.58 4.58 0 0 1 8 2.023 4.58 4.58 0 0 1 11.88.817h.002a4.58 4.58 0 0 1 3.782 3.65v.003a4.82 4.82 0 0 1-1.63 4.521l-.023.02-6.003 5.553a.75.75 0 0 1-1.019.001L1.011 9.008l-.005-.005a4.82 4.82 0 0 1-.688-6.341A4.58 4.58 0 0 1 1.69 2zm3.356.418a3.08 3.08 0 0 0-3.668 2.155 3.32 3.32 0 0 0 .481 2.69L8 13.203l5.976-5.526a3.32 3.32 0 0 0 1.11-3.11 3.08 3.08 0 0 0-2.542-2.448 3.08 3.08 0 0 0-3.392 1.775.75.75 0 0 1-1.33.018 3.08 3.08 0 0 0-2.776-1.494z"/>',
+    "heart-active":
+      '<path d="M15.724 4.22A4.313 4.313 0 0 0 12.192.814a4.269 4.269 0 0 0-3.622 1.13.837.837 0 0 1-1.14 0 4.272 4.272 0 0 0-6.21 5.855l5.916 7.05a1.128 1.128 0 0 0 1.727 0l5.916-7.05a4.228 4.228 0 0 0 .945-3.577z"/>',
   };
 
   function icon(name: string): string {
@@ -73,9 +77,12 @@
         <a class="crp-context" href="#"><span class="crp-context-label">Playing from</span> <span class="crp-context-name"></span></a>
         <div class="crp-cover"></div>
         <div class="crp-track-info">
-          <a class="crp-track-name crp-link"></a>
-          <a class="crp-track-artist crp-link"></a>
-          <a class="crp-track-album crp-link"></a>
+          <div class="crp-track-text">
+            <a class="crp-track-name crp-link"></a>
+            <a class="crp-track-artist crp-link"></a>
+            <a class="crp-track-album crp-link"></a>
+          </div>
+          <button class="crp-btn crp-like" title="Save to Liked Songs">${icon("heart")}</button>
         </div>
         <div class="crp-seek">
           <span class="crp-time-elapsed">0:00</span>
@@ -164,6 +171,9 @@
         Spicetify.Player.toggleMute();
         syncVolume();
       });
+    root
+      .querySelector(".crp-like")
+      ?.addEventListener("click", toggleLike);
 
     const seekBar = root.querySelector<HTMLElement>(".crp-seek-bar");
     if (seekBar) {
@@ -327,6 +337,71 @@
     if (!btn) return;
     const paused = Spicetify.Player.data?.isPaused ?? true;
     btn.innerHTML = icon(paused ? "play" : "pause");
+  }
+
+  // Spicetify.Platform.LibraryAPI shape varies across builds; probe the
+  // common signatures. `contains` may return boolean | boolean[] depending
+  // on whether a single URI or array was passed.
+  type LibraryAPI = {
+    contains?: (
+      ...uris: Array<string | string[]>
+    ) => Promise<boolean | boolean[]>;
+    add?: (arg: { uris: string[] }) => Promise<unknown>;
+    remove?: (arg: { uris: string[] }) => Promise<unknown>;
+    getEvents?: () => {
+      addListener?: (name: string, fn: () => void) => void;
+    };
+  };
+
+  function libraryApi(): LibraryAPI | undefined {
+    return (Spicetify.Platform as unknown as { LibraryAPI?: LibraryAPI })
+      ?.LibraryAPI;
+  }
+
+  async function isLiked(uri: string): Promise<boolean> {
+    const api = libraryApi();
+    if (!api?.contains) return false;
+    try {
+      const res = await api.contains(uri);
+      return Array.isArray(res) ? !!res[0] : !!res;
+    } catch {
+      return false;
+    }
+  }
+
+  async function syncLikeState(): Promise<void> {
+    if (!panelEl) return;
+    const btn = panelEl.querySelector<HTMLElement>(".crp-like");
+    const uri = Spicetify.Player.data?.item?.uri;
+    if (!btn) return;
+    if (!uri || !uri.startsWith("spotify:track:")) {
+      btn.classList.remove("active");
+      btn.innerHTML = icon("heart");
+      btn.setAttribute("title", "Save to Liked Songs");
+      return;
+    }
+    const liked = await isLiked(uri);
+    btn.classList.toggle("active", liked);
+    btn.innerHTML = icon(liked ? "heart-active" : "heart");
+    btn.setAttribute(
+      "title",
+      liked ? "Remove from Liked Songs" : "Save to Liked Songs",
+    );
+  }
+
+  async function toggleLike(): Promise<void> {
+    const uri = Spicetify.Player.data?.item?.uri;
+    if (!uri || !uri.startsWith("spotify:track:")) return;
+    const api = libraryApi();
+    if (!api) return;
+    const liked = await isLiked(uri);
+    try {
+      if (liked) await api.remove?.({ uris: [uri] });
+      else await api.add?.({ uris: [uri] });
+    } catch {
+      // failure just leaves the icon stale until next sync
+    }
+    await syncLikeState();
   }
 
   // Spicetify's getShuffle/getRepeat may be absent on some builds — fall back
@@ -1156,6 +1231,7 @@
     syncPlayPause();
     syncShuffleRepeat();
     syncVolume();
+    syncLikeState();
     setActiveTab(activeTab);
     // Re-populate tabs after re-inject (React may wipe our subtree).
     lastQueueKey = "";
@@ -1181,6 +1257,7 @@
 
   Spicetify.Player.addEventListener("songchange", () => {
     syncTrackInfo();
+    syncLikeState();
     refreshQueue();
     refreshRecent();
     // Spotify's recents can lag the songchange event by a couple seconds —
@@ -1188,6 +1265,11 @@
     window.setTimeout(() => refreshRecent(true), 2000);
   });
   Spicetify.Player.addEventListener("onplaypause", syncPlayPause);
+
+  // Pick up likes/unlikes from other surfaces (now-playing-bar, context menu,
+  // other clients). If the library events API isn't present, fall back to
+  // the post-toggle re-sync we already do.
+  libraryApi()?.getEvents?.()?.addListener?.("update", syncLikeState);
   startProgressLoop();
   refreshQueue();
   refreshRecent();
