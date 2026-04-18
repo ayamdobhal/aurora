@@ -223,12 +223,18 @@ div[style*="--background-base"][style*="--background-elevated"]:empty {
   background: transparent !important;
 }
 
-/* Top nav bar: transparent container, blend with blurred bg */
+/* Top nav bar: transparent container, blend with blurred bg. Stack above
+   the main-view so horizontally-scrolling shelves (carousels, grids) can't
+   bleed over the search bar. .Root__main-view is position: relative for
+   the lyrics slot, so without an explicit z-index here the nav would
+   render in source order underneath. */
 .Root__globalNav,
 #global-nav-bar {
   background: transparent !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
+  position: relative;
+  z-index: 10;
 }
 
 /* Sticky top-bar bg layer on scroll — stay transparent, just apply a blur
@@ -254,6 +260,28 @@ button.main-globalNav-navLink[aria-label="Home"],
 input.main-topBar-searchBar,
 input.x-searchInput-searchInputInput {
   background: transparent !important;
+}
+
+/* Recent searches / suggestions dropdown: drop the solid backdrop and
+   blur the album art behind it to match the top-bar look. Spotify reuses
+   main-actionBar-ActionBarContainer for the in-page action bar on
+   playlists/albums too — exclude anything inside .Root__main-view so
+   only the dropdown in the top nav gets the translucent treatment. */
+.main-actionBar-ActionBarContainer:not(.Root__main-view *) {
+  background: transparent !important;
+  backdrop-filter: blur(30px) !important;
+  -webkit-backdrop-filter: blur(30px) !important;
+}
+
+/* When the dropdown is mounted inside the search pill, the pill's own
+   backdrop-filter becomes the dropdown's backdrop root — nested blur just
+   re-blurs an already-blurred 40% black overlay and looks identical.
+   Strip the wrapper's own bg + blur only while the dropdown is present so
+   the dropdown's 30px blur can sample the album art directly. */
+.main-globalNav-searchInputWrapper:has(.main-actionBar-ActionBarContainer) {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 /* Home page header has an inline-styled accent bg — force transparent */
