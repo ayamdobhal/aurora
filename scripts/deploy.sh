@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SPICETIFY_DIR="$HOME/.config/spicetify"
-THEME_NAME="custom-theme"
+THEME_NAME="aurora"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 

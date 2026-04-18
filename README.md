@@ -25,24 +25,47 @@ A [Spicetify](https://spicetify.app) theme + extension bundle. Glassy translucen
 
 ## Install
 
-Requires [Spicetify](https://spicetify.app) and [just](https://github.com/casey/just). TypeScript is expected on PATH (the flake provides it; otherwise install globally).
+All paths require [Spicetify](https://spicetify.app) to be installed and run at least once.
+
+### One-liner (curl)
+
+Requires `git` and `node` (for `npx`/`esbuild`) on PATH.
 
 ```sh
-git clone git@github.com:ayamdobhal/aurora.git
+curl -fsSL https://raw.githubusercontent.com/ayamdobhal/aurora/main/install.sh | bash
+```
+
+The script clones the repo to a temp dir, compiles the extensions with `npx esbuild`, copies the theme and extensions into your Spicetify config, and applies.
+
+### Manual (no just, no nix)
+
+Requires `typescript` and `esbuild` on PATH (`npm i -g typescript esbuild`).
+
+```sh
+git clone https://github.com/ayamdobhal/aurora.git
 cd aurora
+bash scripts/build.sh
+bash scripts/deploy.sh
+```
+
+### With just
+
+Requires [just](https://github.com/casey/just) plus the manual-install prerequisites above.
+
+```sh
 just deploy
 ```
 
-`just deploy` compiles the TypeScript extensions, copies the theme to your Spicetify config, and applies it.
-
 ### With Nix
+
+The flake provides all build tooling, so only `nix` is needed on the host.
 
 ```sh
 nix develop
 just deploy
 ```
 
-## Usage
+## Development
 
 ```sh
 just            # build + deploy + apply (default)
