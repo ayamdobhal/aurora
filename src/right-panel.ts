@@ -766,7 +766,6 @@
   }
 
   async function tryOne(
-    label: string,
     fn: () => Promise<unknown> | undefined,
   ): Promise<unknown> {
     const res = await fn();
@@ -785,7 +784,7 @@
   ): Promise<{ hit: string; fn: () => Promise<unknown> | undefined; raw: unknown } | null> {
     for (const [label, fn] of attempts) {
       try {
-        const res = await tryOne(label, fn);
+        const res = await tryOne(fn);
         if (res == null) continue;
         return { hit: label, fn, raw: res };
       } catch {
@@ -838,7 +837,7 @@
     let raw: unknown = null;
     if (recentWinner) {
       try {
-        raw = await tryOne(recentWinner.label, recentWinner.fn);
+        raw = await tryOne(recentWinner.fn);
       } catch {
         recentWinner = null;
       }
@@ -1040,7 +1039,7 @@
     let rawRes: unknown = null;
     if (friendsWinner) {
       try {
-        rawRes = await tryOne(friendsWinner.label, friendsWinner.fn);
+        rawRes = await tryOne(friendsWinner.fn);
       } catch {
         friendsWinner = null;
       }
