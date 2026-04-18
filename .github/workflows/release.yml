@@ -30,7 +30,35 @@ jobs:
           tar -czf dist/aurora.tar.gz theme extensions
           zip -r dist/aurora.zip theme extensions
 
-      - name: Release
+      - name: Extract changelog section
+        id: changelog
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          # Pull lines between "## <tag>" and the next "## v" heading.
+          awk -v tag="$TAG" '
+            $0 ~ "^## " tag "( |$)" { flag=1; next }
+            /^## v/ && flag { exit }
+            flag
+          ' CHANGELOG.md > dist/notes.md || true
+          if [ -s dist/notes.md ]; then
+            echo "Found CHANGELOG section for $TAG"
+            echo "have_notes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No CHANGELOG section for $TAG — falling back to auto-generated notes"
+            echo "have_notes=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Release (curated notes)
+        if: steps.changelog.outputs.have_notes == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/aurora.tar.gz
+            dist/aurora.zip
+          body_path: dist/notes.md
+
+      - name: Release (auto-generated notes)
+        if: steps.changelog.outputs.have_notes == 'false'
         uses: softprops/action-gh-release@v2
         with:
           files: |
