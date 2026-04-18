@@ -3,8 +3,9 @@
 A [Spicetify](https://spicetify.app) theme + extension bundle. Glassy translucent UI, dynamic color theming from album art, a custom right panel, a lyrics view with a 5-line focus, a command palette, and keyboard shortcuts.
 
 ## Screenshots
-<img width="2056" height="1329" alt="lyrics view" src="https://github.com/user-attachments/assets/5bf45a4d-b7d5-4c9f-b6bf-45424fb1c014" />
-<img width="2056" height="1329" alt="command palette" src="https://github.com/user-attachments/assets/25c2d3ee-b3b0-4c47-8dd7-3df9abc1859a" />
+<img width="2056" height="1329" alt="queue view" src="https://github.com/user-attachments/assets/32268d9f-6d3a-421b-bf0c-e1930b14622e" />
+<img width="2056" height="1329" alt="recents + lyrics" src="https://github.com/user-attachments/assets/40484e65-9d9c-4a3a-b71f-9c92358b3ada" />
+
 
 
 ## Features
