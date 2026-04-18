@@ -27,10 +27,13 @@ jobs:
       - name: Package
         run: |
           mkdir -p dist
+          tar -czf dist/aurora.tar.gz theme extensions
           zip -r dist/aurora.zip theme extensions
 
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/aurora.zip
+          files: |
+            dist/aurora.tar.gz
+            dist/aurora.zip
           generate_release_notes: true

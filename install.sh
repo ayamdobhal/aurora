@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-RELEASE_URL="https://github.com/ayamdobhal/aurora/releases/latest/download/aurora.zip"
+RELEASE_URL="https://github.com/ayamdobhal/aurora/releases/latest/download/aurora.tar.gz"
 THEME_NAME="aurora"
 SPICETIFY_DIR="$HOME/.config/spicetify"
 
@@ -17,7 +17,7 @@ need() {
 
 need spicetify "Install from https://spicetify.app"
 need curl      "Install curl and retry"
-need unzip     "Install unzip and retry"
+need tar       "Install tar and retry"
 
 [ -d "$SPICETIFY_DIR" ] || die "Spicetify config not found at $SPICETIFY_DIR. Run 'spicetify' once first."
 
@@ -25,10 +25,11 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 info "Downloading latest aurora release"
-curl -fsSL -o "$TMP/aurora.zip" "$RELEASE_URL"
+curl -fsSL -o "$TMP/aurora.tar.gz" "$RELEASE_URL"
 
 info "Extracting"
-unzip -q "$TMP/aurora.zip" -d "$TMP/aurora"
+mkdir -p "$TMP/aurora"
+tar -xzf "$TMP/aurora.tar.gz" -C "$TMP/aurora"
 
 info "Copying theme to $SPICETIFY_DIR/Themes/$THEME_NAME"
 mkdir -p "$SPICETIFY_DIR/Themes"

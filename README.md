@@ -27,15 +27,23 @@ A [Spicetify](https://spicetify.app) theme + extension bundle. Glassy translucen
 
 All paths require [Spicetify](https://spicetify.app) to be installed and run at least once.
 
-### One-liner (curl)
+### One-liner — macOS / Linux
 
-Requires `curl` and `unzip` on PATH. No Node or build tools needed — extensions are pre-built and shipped in the release zip.
+Requires `curl` and `tar` on PATH. No Node or build tools needed — extensions are pre-built and shipped in the release archive.
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/ayamdobhal/aurora/main/install.sh | bash
 ```
 
-The script downloads the latest release, copies the theme and extensions into your Spicetify config, and applies.
+### One-liner — Windows (PowerShell)
+
+Requires PowerShell 5+ (built into Windows 10/11). No extra tooling needed.
+
+```powershell
+iwr -useb https://raw.githubusercontent.com/ayamdobhal/aurora/main/install.ps1 | iex
+```
+
+Both scripts download the latest release, copy the theme and extensions into your Spicetify config, and apply.
 
 ### Manual (no just, no nix)
 
