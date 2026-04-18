@@ -1,0 +1,36 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install build tools
+        run: npm install -g typescript esbuild
+
+      - name: Build extensions
+        run: bash scripts/build.sh
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          zip -r dist/aurora.zip theme extensions
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/aurora.zip
+          generate_release_notes: true

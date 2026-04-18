@@ -29,13 +29,13 @@ All paths require [Spicetify](https://spicetify.app) to be installed and run at 
 
 ### One-liner (curl)
 
-Requires `git` and `node` (for `npx`/`esbuild`) on PATH.
+Requires `curl` and `unzip` on PATH. No Node or build tools needed — extensions are pre-built and shipped in the release zip.
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/ayamdobhal/aurora/main/install.sh | bash
 ```
 
-The script clones the repo to a temp dir, compiles the extensions with `npx esbuild`, copies the theme and extensions into your Spicetify config, and applies.
+The script downloads the latest release, copies the theme and extensions into your Spicetify config, and applies.
 
 ### Manual (no just, no nix)
 

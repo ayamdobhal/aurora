@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-REPO="https://github.com/ayamdobhal/aurora.git"
+RELEASE_URL="https://github.com/ayamdobhal/aurora/releases/latest/download/aurora.zip"
 THEME_NAME="aurora"
 SPICETIFY_DIR="$HOME/.config/spicetify"
 
@@ -16,39 +16,28 @@ need() {
 }
 
 need spicetify "Install from https://spicetify.app"
-need git       "Install git and retry"
-need npx       "Install Node.js (bundles npx): https://nodejs.org"
+need curl      "Install curl and retry"
+need unzip     "Install unzip and retry"
 
 [ -d "$SPICETIFY_DIR" ] || die "Spicetify config not found at $SPICETIFY_DIR. Run 'spicetify' once first."
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-info "Cloning aurora"
-git clone --depth=1 --quiet "$REPO" "$TMP/aurora"
-cd "$TMP/aurora"
+info "Downloading latest aurora release"
+curl -fsSL -o "$TMP/aurora.zip" "$RELEASE_URL"
 
-info "Building extensions"
-mkdir -p extensions
-for src in src/*.ts; do
-  name="$(basename "$src" .ts)"
-  [[ "$name" == *.d ]] && continue
-  npx -y esbuild "$src" \
-    --bundle \
-    --format=iife \
-    --target=es2020 \
-    --outfile="extensions/$name.js" \
-    --log-level=warning >/dev/null
-done
+info "Extracting"
+unzip -q "$TMP/aurora.zip" -d "$TMP/aurora"
 
 info "Copying theme to $SPICETIFY_DIR/Themes/$THEME_NAME"
 mkdir -p "$SPICETIFY_DIR/Themes"
 rm -rf "$SPICETIFY_DIR/Themes/$THEME_NAME"
-cp -r theme "$SPICETIFY_DIR/Themes/$THEME_NAME"
+cp -r "$TMP/aurora/theme" "$SPICETIFY_DIR/Themes/$THEME_NAME"
 
 info "Copying extensions to $SPICETIFY_DIR/Extensions"
 mkdir -p "$SPICETIFY_DIR/Extensions"
-for ext in extensions/*.js; do
+for ext in "$TMP/aurora/extensions/"*.js; do
   cp "$ext" "$SPICETIFY_DIR/Extensions/"
 done
 
@@ -56,7 +45,7 @@ info "Configuring spicetify"
 spicetify config current_theme "$THEME_NAME" >/dev/null
 
 EXTENSIONS=""
-for ext in extensions/*.js; do
+for ext in "$TMP/aurora/extensions/"*.js; do
   name="$(basename "$ext")"
   if [ -z "$EXTENSIONS" ]; then
     EXTENSIONS="$name"
