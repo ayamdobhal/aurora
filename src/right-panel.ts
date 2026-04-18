@@ -244,14 +244,30 @@
       ?.addEventListener("click", clearQueue);
   }
 
+  const TAB_ORDER: Record<TabId, number> = { queue: 0, recent: 1, friends: 2 };
+  let lastTabIdx = 0;
+
   function setActiveTab(id: TabId): void {
     if (!panelEl) return;
+    const prevIdx = lastTabIdx;
+    const newIdx = TAB_ORDER[id];
     activeTab = id;
+    lastTabIdx = newIdx;
     panelEl.querySelectorAll<HTMLElement>(".crp-tab").forEach((el) => {
       el.classList.toggle("active", el.dataset.tab === id);
     });
+    // Pane slide direction: newer tab (right) → slide in from right;
+    // older tab (left) → slide in from left. Re-applying the animation
+    // class requires removing + forcing reflow so the same animation can
+    // restart on repeat clicks.
     panelEl.querySelectorAll<HTMLElement>(".crp-tab-pane").forEach((el) => {
-      el.classList.toggle("active", el.dataset.pane === id);
+      el.classList.remove("crp-slide-right", "crp-slide-left");
+      const isActive = el.dataset.pane === id;
+      el.classList.toggle("active", isActive);
+      if (isActive) {
+        void el.offsetWidth;
+        el.classList.add(newIdx >= prevIdx ? "crp-slide-right" : "crp-slide-left");
+      }
     });
     const bar = panelEl.querySelector<HTMLElement>(".crp-tab-bar");
     if (bar) bar.dataset.active = id;
@@ -567,17 +583,21 @@
     if (api?.getQueue) {
       try {
         const s = (await api.getQueue()) as Record<string, unknown>;
-        if (Array.isArray(s?.queued)) queued = (s.queued as unknown[]).length;
-        const candidates = [
-          s?.queued,
-          s?.nextTracks,
-          (s?.queue as Record<string, unknown>)?.nextTracks,
-        ];
-        for (const c of candidates) {
-          if (Array.isArray(c)) {
-            raw = c;
-            break;
-          }
+        // On this build: `queued` = user "Play next" items (each carries
+        // `provider: "queue"`), `nextUp` = context auto-up-next tail.
+        // Concatenate in playback order; older builds expose the same as
+        // `nextTracks`, so fall back to it if present.
+        const userQ = Array.isArray(s?.queued) ? (s.queued as unknown[]) : [];
+        const nextUp = Array.isArray(s?.nextUp) ? (s.nextUp as unknown[]) : [];
+        queued = userQ.length;
+        if (userQ.length || nextUp.length) {
+          raw = userQ.concat(nextUp);
+        } else if (Array.isArray(s?.nextTracks)) {
+          raw = s.nextTracks as unknown[];
+        } else if (
+          Array.isArray((s?.queue as Record<string, unknown>)?.nextTracks)
+        ) {
+          raw = (s.queue as Record<string, unknown>).nextTracks as unknown[];
         }
       } catch {
         // ignore
@@ -604,6 +624,24 @@
 
   let cachedQueue: QueueTrack[] = [];
 
+  function renderQueueRow(t: QueueTrack, i: number): string {
+    const artist = t.artist ? linkHtml(t.artistUri, t.artist) : "";
+    const album = t.album ? linkHtml(t.albumUri, t.album) : "";
+    const sub = [artist, album].filter(Boolean).join(" · ");
+    return `
+      <div class="crp-list-row crp-queue-row" data-idx="${i}" draggable="true">
+        <div class="crp-drag-handle" aria-hidden="true">&#x2261;</div>
+        <div class="crp-list-art" style="background-image: url('${t.art}');"></div>
+        <div class="crp-list-info">
+          ${linkHtml(t.uri, t.name, "crp-list-name")}
+          <span class="crp-list-sub">${sub}</span>
+        </div>
+        <div class="crp-row-actions">
+          <button class="crp-row-btn" data-action="remove" title="Remove from queue">&times;</button>
+        </div>
+      </div>`;
+  }
+
   function renderQueue(list: QueueTrack[]): void {
     if (!panelEl) return;
     const container = panelEl.querySelector<HTMLElement>(".crp-queue-list");
@@ -612,27 +650,21 @@
       container.innerHTML = '<div class="crp-empty">Queue is empty</div>';
       return;
     }
-    container.innerHTML = list
-      .map((t, i) => {
-        const artist = t.artist ? linkHtml(t.artistUri, t.artist) : "";
-        const album = t.album ? linkHtml(t.albumUri, t.album) : "";
-        const sub = [artist, album].filter(Boolean).join(" · ");
-        return `
-        <div class="crp-list-row crp-queue-row" data-idx="${i}" draggable="true">
-          <div class="crp-drag-handle" aria-hidden="true">&#x2261;</div>
-          <div class="crp-list-art" style="background-image: url('${t.art}');"></div>
-          <div class="crp-list-info">
-            ${linkHtml(t.uri, t.name, "crp-list-name")}
-            <span class="crp-list-sub">${sub}</span>
-          </div>
-          <div class="crp-row-actions">
-            <button class="crp-row-btn" data-action="remove" title="Remove from queue">&times;</button>
-          </div>
-        </div>
-      `;
-      })
-      .join("");
-
+    // Split at userQueuedCount: items before are user "Play next", items
+    // after are context auto-up-next. Mirrors Spotify's own layout with a
+    // "Next up" label between the two groups. Data-idx is the absolute
+    // index into cachedQueue regardless of which group the row is in, so
+    // click/remove/reorder handlers keep working.
+    const split = Math.min(userQueuedCount, list.length);
+    const user = list.slice(0, split).map((t, i) => renderQueueRow(t, i));
+    const auto = list
+      .slice(split)
+      .map((t, i) => renderQueueRow(t, split + i));
+    const divider =
+      user.length > 0 && auto.length > 0
+        ? '<div class="crp-queue-divider">Next up</div>'
+        : "";
+    container.innerHTML = user.join("") + divider + auto.join("");
   }
 
   function clearDropIndicators(container: HTMLElement): void {
