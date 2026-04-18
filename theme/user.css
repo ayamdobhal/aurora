@@ -1032,6 +1032,47 @@ a.crp-link:hover {
   background: #fff;
 }
 
+.crp-tab-action {
+  display: none;
+  margin-left: auto;
+  align-self: center;
+  align-items: center;
+  gap: 0.3rem;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.75);
+  padding: 0.3rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: inherit;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease;
+}
+
+.crp-tab-action svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+  flex: none;
+}
+
+.crp-tab-action:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+/* Show the Clear queue pill only when the Queue tab is active AND the
+   user has added at least one track. :not([data-user-queued="0"])
+   matches both "1+" and an absent attribute, so we start the DOM with
+   data-user-queued="0" to keep it hidden until fetchQueue proves otherwise. */
+.crp-tab-bar[data-active="queue"]:not([data-user-queued="0"]) .crp-clear-queue {
+  display: inline-flex;
+}
+
 .crp-tab-content {
   position: relative;
   overflow: hidden;
@@ -1049,6 +1090,25 @@ a.crp-link:hover {
 
 .crp-tab-pane.active {
   display: block;
+  animation: crp-fade-in 140ms ease-out;
+}
+
+/* Fade only the pane that's appearing. No transform — a transform inside
+   the right sidebar's backdrop-filter subtree retriggers the blur on
+   every frame, which tanks performance. Opacity-only stays on the
+   compositor and doesn't dirty the backdrop. */
+@keyframes crp-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Let the browser skip offscreen rows. Each row is ~56px (avatar height
+   + padding); the intrinsic-size hint keeps scrollbar sizing stable. */
+.crp-list-row,
+.crp-queue-row,
+.crp-friend-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 56px;
 }
 
 .crp-list {

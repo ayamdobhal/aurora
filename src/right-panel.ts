@@ -30,6 +30,8 @@
       '<path d="M1.69 2A4.58 4.58 0 0 1 8 2.023 4.58 4.58 0 0 1 11.88.817h.002a4.58 4.58 0 0 1 3.782 3.65v.003a4.82 4.82 0 0 1-1.63 4.521l-.023.02-6.003 5.553a.75.75 0 0 1-1.019.001L1.011 9.008l-.005-.005a4.82 4.82 0 0 1-.688-6.341A4.58 4.58 0 0 1 1.69 2zm3.356.418a3.08 3.08 0 0 0-3.668 2.155 3.32 3.32 0 0 0 .481 2.69L8 13.203l5.976-5.526a3.32 3.32 0 0 0 1.11-3.11 3.08 3.08 0 0 0-2.542-2.448 3.08 3.08 0 0 0-3.392 1.775.75.75 0 0 1-1.33.018 3.08 3.08 0 0 0-2.776-1.494z"/>',
     "heart-active":
       '<path d="M15.724 4.22A4.313 4.313 0 0 0 12.192.814a4.269 4.269 0 0 0-3.622 1.13.837.837 0 0 1-1.14 0 4.272 4.272 0 0 0-6.21 5.855l5.916 7.05a1.128 1.128 0 0 0 1.727 0l5.916-7.05a4.228 4.228 0 0 0 .945-3.577z"/>',
+    x:
+      '<path d="M2.47 2.47a.75.75 0 0 1 1.06 0L8 6.94l4.47-4.47a.75.75 0 1 1 1.06 1.06L9.06 8l4.47 4.47a.75.75 0 1 1-1.06 1.06L8 9.06l-4.47 4.47a.75.75 0 0 1-1.06-1.06L6.94 8 2.47 3.53a.75.75 0 0 1 0-1.06z"/>',
   };
 
   function icon(name: string): string {
@@ -103,10 +105,11 @@
         </div>
       </div>
       <div class="crp-tabs">
-        <div class="crp-tab-bar">
+        <div class="crp-tab-bar" data-active="queue" data-user-queued="0">
           <button class="crp-tab active" data-tab="queue">Queue</button>
           <button class="crp-tab" data-tab="recent">Recent</button>
           <button class="crp-tab" data-tab="friends">Friends</button>
+          <button class="crp-tab-action crp-clear-queue" title="Clear queue">${icon("x")}<span>Clear queue</span></button>
         </div>
         <div class="crp-tab-content">
           <div class="crp-tab-pane active" data-pane="queue"><div class="crp-list crp-queue-list"></div></div>
@@ -236,6 +239,9 @@
         if (id) setActiveTab(id);
       });
     });
+    root
+      .querySelector(".crp-clear-queue")
+      ?.addEventListener("click", clearQueue);
   }
 
   function setActiveTab(id: TabId): void {
@@ -247,6 +253,8 @@
     panelEl.querySelectorAll<HTMLElement>(".crp-tab-pane").forEach((el) => {
       el.classList.toggle("active", el.dataset.pane === id);
     });
+    const bar = panelEl.querySelector<HTMLElement>(".crp-tab-bar");
+    if (bar) bar.dataset.active = id;
     // Kick a background refresh — diff cache + probe cache make this cheap.
     if (id === "recent") refreshRecent();
     else if (id === "friends") refreshFriends();
@@ -544,15 +552,22 @@
     };
   }
 
+  // Tracks the count of user-added "Play next" items, separate from the
+  // context's auto-generated up-next. Used to hide Clear queue when there's
+  // nothing the user has queued up themselves.
+  let userQueuedCount = 0;
+
   async function fetchQueue(): Promise<QueueTrack[]> {
     const platform = Spicetify.Platform as unknown as {
       PlayerAPI?: { getQueue?: () => Promise<unknown> };
     };
     const api = platform?.PlayerAPI;
     let raw: unknown[] = [];
+    let queued = 0;
     if (api?.getQueue) {
       try {
         const s = (await api.getQueue()) as Record<string, unknown>;
+        if (Array.isArray(s?.queued)) queued = (s.queued as unknown[]).length;
         const candidates = [
           s?.queued,
           s?.nextTracks,
@@ -578,6 +593,7 @@
       const fallback = g?.nextTracks || g?._queue?.nextTracks || [];
       if (Array.isArray(fallback)) raw = fallback;
     }
+    userQueuedCount = queued;
     const out: QueueTrack[] = [];
     for (const item of raw) {
       const n = normalizeQueueItem(item);
@@ -617,7 +633,6 @@
       })
       .join("");
 
-    wireQueueRows(container);
   }
 
   function clearDropIndicators(container: HTMLElement): void {
@@ -628,66 +643,82 @@
     });
   }
 
-  function wireQueueRows(container: HTMLElement): void {
-    container.querySelectorAll<HTMLElement>(".crp-queue-row").forEach((row) => {
-      row.addEventListener("click", (e) => {
-        const target = e.target as HTMLElement;
-        if (target.closest(".crp-row-actions")) return;
-        if (target.closest(".crp-drag-handle")) return;
-        if (target.closest("a.crp-link")) return;
-        const idx = parseInt(row.dataset.idx ?? "-1", 10);
-        const t = cachedQueue[idx];
-        if (t) Spicetify.Player.playUri(t.uri);
-      });
-      row.querySelectorAll<HTMLButtonElement>(".crp-row-btn").forEach((btn) => {
-        btn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          const idx = parseInt(row.dataset.idx ?? "-1", 10);
-          if (btn.dataset.action === "remove") removeFromQueue(idx);
-        });
-      });
+  // Container-level delegation — wire once per panel inject, not per render.
+  // With hundreds of rows, attaching 6+ listeners per row on every refresh
+  // was the main source of tab-switch/scroll lag.
+  function wireQueueDelegation(container: HTMLElement): void {
+    const rowOf = (e: Event): HTMLElement | null =>
+      (e.target as HTMLElement).closest<HTMLElement>(".crp-queue-row");
 
-      row.addEventListener("dragstart", (e) => {
+    container.addEventListener("click", (e) => {
+      const row = rowOf(e);
+      if (!row) return;
+      const target = e.target as HTMLElement;
+      const btn = target.closest<HTMLElement>(".crp-row-btn");
+      if (btn) {
+        e.stopPropagation();
         const idx = parseInt(row.dataset.idx ?? "-1", 10);
-        if (idx < 0) return;
-        e.dataTransfer?.setData("text/plain", String(idx));
-        if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
-        row.classList.add("crp-dragging");
-      });
-      row.addEventListener("dragend", () => {
-        row.classList.remove("crp-dragging");
+        if (btn.dataset.action === "remove") removeFromQueue(idx);
+        return;
+      }
+      if (target.closest(".crp-drag-handle")) return;
+      if (target.closest("a.crp-link")) return;
+      const idx = parseInt(row.dataset.idx ?? "-1", 10);
+      const t = cachedQueue[idx];
+      if (t) Spicetify.Player.playUri(t.uri);
+    });
+
+    container.addEventListener("dragstart", (e) => {
+      const row = rowOf(e);
+      if (!row) return;
+      const idx = parseInt(row.dataset.idx ?? "-1", 10);
+      if (idx < 0) return;
+      (e as DragEvent).dataTransfer?.setData("text/plain", String(idx));
+      const dt = (e as DragEvent).dataTransfer;
+      if (dt) dt.effectAllowed = "move";
+      row.classList.add("crp-dragging");
+    });
+
+    container.addEventListener("dragend", (e) => {
+      const row = rowOf(e);
+      if (row) row.classList.remove("crp-dragging");
+      clearDropIndicators(container);
+    });
+
+    container.addEventListener("dragover", (e) => {
+      const row = rowOf(e);
+      if (!row) return;
+      e.preventDefault();
+      const dt = (e as DragEvent).dataTransfer;
+      if (dt) dt.dropEffect = "move";
+      const rect = row.getBoundingClientRect();
+      const before = (e as DragEvent).clientY < rect.top + rect.height / 2;
+      // Only touch the row that's actually under the cursor
+      if (!row.classList.contains(before ? "crp-drop-before" : "crp-drop-after")) {
         clearDropIndicators(container);
-      });
-      row.addEventListener("dragover", (e) => {
-        e.preventDefault();
-        if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
-        const rect = row.getBoundingClientRect();
-        const before = e.clientY < rect.top + rect.height / 2;
         row.classList.toggle("crp-drop-before", before);
         row.classList.toggle("crp-drop-after", !before);
-      });
-      row.addEventListener("dragleave", () => {
-        row.classList.remove("crp-drop-before", "crp-drop-after");
-      });
-      row.addEventListener("drop", (e) => {
-        e.preventDefault();
-        const fromIdx = parseInt(
-          e.dataTransfer?.getData("text/plain") ?? "-1",
-          10,
-        );
-        const targetIdx = parseInt(row.dataset.idx ?? "-1", 10);
-        const dropBefore = row.classList.contains("crp-drop-before");
-        clearDropIndicators(container);
-        if (fromIdx < 0 || targetIdx < 0 || fromIdx === targetIdx) return;
+      }
+    });
 
-        const insertIdx = dropBefore ? targetIdx : targetIdx + 1;
-        // No-op when dropping adjacent to self
-        if (insertIdx === fromIdx || insertIdx === fromIdx + 1) return;
-        const source = cachedQueue[fromIdx];
-        if (!source) return;
-        const beforeItem = cachedQueue[insertIdx] ?? null;
-        moveToPosition(source, beforeItem);
-      });
+    container.addEventListener("drop", (e) => {
+      const row = rowOf(e);
+      if (!row) return;
+      e.preventDefault();
+      const fromIdx = parseInt(
+        (e as DragEvent).dataTransfer?.getData("text/plain") ?? "-1",
+        10,
+      );
+      const targetIdx = parseInt(row.dataset.idx ?? "-1", 10);
+      const dropBefore = row.classList.contains("crp-drop-before");
+      clearDropIndicators(container);
+      if (fromIdx < 0 || targetIdx < 0 || fromIdx === targetIdx) return;
+      const insertIdx = dropBefore ? targetIdx : targetIdx + 1;
+      if (insertIdx === fromIdx || insertIdx === fromIdx + 1) return;
+      const source = cachedQueue[fromIdx];
+      if (!source) return;
+      const beforeItem = cachedQueue[insertIdx] ?? null;
+      moveToPosition(source, beforeItem);
     });
   }
 
@@ -697,6 +728,7 @@
       tracks: unknown[],
       opts: unknown,
     ) => Promise<unknown>;
+    clearQueue?: () => Promise<unknown>;
   } | undefined {
     return (Spicetify.Platform as unknown as {
       PlayerAPI?: {
@@ -705,8 +737,27 @@
           tracks: unknown[],
           opts: unknown,
         ) => Promise<unknown>;
+        clearQueue?: () => Promise<unknown>;
       };
     })?.PlayerAPI;
+  }
+
+  async function clearQueue(): Promise<void> {
+    const api = playerApi();
+    if (!api) return;
+    try {
+      if (api.clearQueue) {
+        await api.clearQueue();
+      } else if (api.removeFromQueue && cachedQueue.length > 0) {
+        // Fallback for builds without clearQueue — remove everything in bulk.
+        await api.removeFromQueue(
+          cachedQueue.map((t) => ({ uri: t.uri, uid: t.uid })),
+        );
+      }
+      await refreshQueue(true);
+    } catch {
+      // swallow — next refresh corrects state
+    }
   }
 
   async function removeFromQueue(idx: number): Promise<void> {
@@ -751,6 +802,13 @@
   async function refreshQueue(force = false): Promise<void> {
     const list = await fetchQueue();
     const key = list.map((t) => t.uid || t.uri).join("|");
+    // Always sync the user-queued count — even when the visible list
+    // hasn't changed, the user-queued split may have (e.g. they added or
+    // removed a single already-present track).
+    if (panelEl) {
+      const bar = panelEl.querySelector<HTMLElement>(".crp-tab-bar");
+      if (bar) bar.dataset.userQueued = String(userQueuedCount);
+    }
     if (!force && key === lastQueueKey) return;
     lastQueueKey = key;
     cachedQueue = list;
@@ -767,6 +825,43 @@
     album: string;
     albumUri: string;
     art: string;
+    // ms epoch of last play. Zero when the API response didn't include
+    // a parseable timestamp on this build.
+    playedAt: number;
+  }
+
+  function parseTimestamp(v: unknown): number {
+    if (typeof v === "number" && isFinite(v)) {
+      // Heuristic: values below year 2001 as seconds-since-epoch are
+      // essentially unreachable here; treat small numbers as seconds.
+      return v < 1e12 ? v * 1000 : v;
+    }
+    if (typeof v === "string") {
+      const n = Date.parse(v);
+      if (!isNaN(n)) return n;
+    }
+    return 0;
+  }
+
+  // Relative time for Recent rows. User spec: 1h ago, 23h ago,
+  // yesterday, 5d ago, etc.
+  function relTime(ms: number): string {
+    if (!ms) return "";
+    const diff = Date.now() - ms;
+    if (diff < 0) return "just now";
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 2) return "yesterday";
+    if (days < 7) return `${days}d ago`;
+    const weeks = Math.floor(days / 7);
+    if (weeks < 5) return `${weeks}w ago`;
+    const months = Math.floor(days / 30);
+    if (months < 12) return `${months}mo ago`;
+    return `${Math.floor(days / 365)}y ago`;
   }
 
   function extractArtUrl(sources: unknown): string {
@@ -829,6 +924,33 @@
       const meta = t?.metadata as Record<string, string | undefined> | undefined;
       art = meta?.image_small_url || meta?.image_url || "";
     }
+    // Play timestamp. Different Spicetify builds expose this under
+    // different keys — probe the common ones on both the wrapper and the
+    // track, accepting either ms-epoch numbers or ISO strings. On this
+    // build it's `addedAt: { timestamp: <ms> }`; older shapes store it
+    // flat, so we probe both.
+    const ts = any?.addedAt as { timestamp?: unknown } | undefined;
+    const tsCandidates: unknown[] = [
+      ts?.timestamp,
+      any?.playedAt,
+      any?.played_at,
+      any?.addedAt,
+      any?.added_at,
+      any?.lastPlayedAt,
+      any?.timestamp,
+      t?.playedAt,
+      t?.played_at,
+      t?.lastPlayedAt,
+      t?.timestamp,
+    ];
+    let playedAt = 0;
+    for (const c of tsCandidates) {
+      const n = parseTimestamp(c);
+      if (n) {
+        playedAt = n;
+        break;
+      }
+    }
     return {
       uri,
       name,
@@ -837,6 +959,7 @@
       album,
       albumUri,
       art: toHttpUrl(art) || "",
+      playedAt,
     };
   }
 
@@ -980,6 +1103,8 @@
       album?: string;
       albumUri?: string;
       art: string;
+      // Plain-text extra segment appended to the subline (e.g. "5m ago").
+      subExtra?: string;
     }>,
     emptyMsg: string,
   ): void {
@@ -991,7 +1116,8 @@
       .map((t, i) => {
         const artist = t.artist ? linkHtml(t.artistUri, t.artist) : "";
         const album = t.album ? linkHtml(t.albumUri, t.album) : "";
-        const sub = [artist, album].filter(Boolean).join(" · ");
+        const extra = t.subExtra ? escapeHtml(t.subExtra) : "";
+        const sub = [artist, album, extra].filter(Boolean).join(" · ");
         return `
         <div class="crp-list-row" data-idx="${i}" data-uri="${escapeHtml(t.uri)}">
           <div class="crp-list-art" style="background-image: url('${t.art}');"></div>
@@ -1003,13 +1129,17 @@
       `;
       })
       .join("");
-    container.querySelectorAll<HTMLElement>(".crp-list-row").forEach((row) => {
-      row.addEventListener("click", (e) => {
-        // Link clicks inside the row navigate; row background plays the track.
-        if ((e.target as HTMLElement).closest("a.crp-link")) return;
-        const uri = row.dataset.uri;
-        if (uri) Spicetify.Player.playUri(uri);
-      });
+  }
+
+  // One-time delegated click handler for a Recent/simple list container.
+  // Link clicks inside the row navigate; row background plays the track.
+  function wireSimpleListDelegation(container: HTMLElement): void {
+    container.addEventListener("click", (e) => {
+      const target = e.target as HTMLElement;
+      if (target.closest("a.crp-link")) return;
+      const row = target.closest<HTMLElement>(".crp-list-row");
+      const uri = row?.dataset.uri;
+      if (uri) Spicetify.Player.playUri(uri);
     });
   }
 
@@ -1022,7 +1152,8 @@
     const key = list.map((t) => t.uri).join("|");
     if (!force && key === lastRecentKey) return;
     lastRecentKey = key;
-    renderSimpleList(container, list, "No recent tracks");
+    const rows = list.map((t) => ({ ...t, subExtra: relTime(t.playedAt) }));
+    renderSimpleList(container, rows, "No recent tracks");
   }
 
   // ==================== Friends tab ====================
@@ -1199,12 +1330,15 @@
       `;
       })
       .join("");
-    container.querySelectorAll<HTMLElement>(".crp-friend-row").forEach((row) => {
-      row.addEventListener("click", (e) => {
-        if ((e.target as HTMLElement).closest("a.crp-link")) return;
-        const uri = row.dataset.uri;
-        if (uri) Spicetify.Player.playUri(uri);
-      });
+  }
+
+  function wireFriendsDelegation(container: HTMLElement): void {
+    container.addEventListener("click", (e) => {
+      const target = e.target as HTMLElement;
+      if (target.closest("a.crp-link")) return;
+      const row = target.closest<HTMLElement>(".crp-friend-row");
+      const uri = row?.dataset.uri;
+      if (uri) Spicetify.Player.playUri(uri);
     });
   }
 
@@ -1227,6 +1361,15 @@
     if (!sidebar) return;
     panelEl = build();
     sidebar.appendChild(panelEl);
+    // Wire list-container event delegation once per panel lifetime. With
+    // hundreds of rows, per-row listeners would add up fast — all row
+    // interactions below go through these single handlers.
+    const queueList = panelEl.querySelector<HTMLElement>(".crp-queue-list");
+    const recentList = panelEl.querySelector<HTMLElement>(".crp-recent-list");
+    const friendsList = panelEl.querySelector<HTMLElement>(".crp-friends-list");
+    if (queueList) wireQueueDelegation(queueList);
+    if (recentList) wireSimpleListDelegation(recentList);
+    if (friendsList) wireFriendsDelegation(friendsList);
     syncTrackInfo();
     syncPlayPause();
     syncShuffleRepeat();
