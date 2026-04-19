@@ -246,14 +246,39 @@ div[style*="--background-base"][style*="--background-elevated"]:empty {
   -webkit-backdrop-filter: blur(40px) !important;
 }
 
-/* Home button + search bar: match sidebar translucent look */
+/* Home button + search bar + nav (back/forward) + friend-activity/lyrics
+   button: match sidebar translucent look. Without this, the icon-only
+   buttons can blend into the blurred album-art bg whenever the cover is
+   mostly one hue (accent ≈ background). The translucent dark pill is
+   bg-independent, so contrast holds for any cover. */
 button.main-globalNav-navLink[aria-label="Home"],
 .main-globalNav-link-icon[aria-label="Home"],
-.main-globalNav-searchInputWrapper {
+.main-globalNav-searchInputWrapper,
+button[aria-label="Go back"],
+button[aria-label="Go forward"],
+[data-testid="top-bar-back-button"],
+[data-testid="top-bar-forward-button"],
+button[aria-label="What's New"],
+.main-topBar-buddyFeed,
+[data-lyrics-btn="1"] {
   background: rgba(0, 0, 0, 0.4) !important;
   backdrop-filter: blur(8px) !important;
   -webkit-backdrop-filter: blur(8px) !important;
   border-radius: 999px;
+}
+
+/* Back/forward sit on default-width pill buttons → look like stadiums.
+   Force a 1:1 aspect so the translucent bg becomes a proper circle. */
+button[aria-label="Go back"],
+button[aria-label="Go forward"],
+[data-testid="top-bar-back-button"],
+[data-testid="top-bar-forward-button"] {
+  width: 32px !important;
+  height: 32px !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 
 /* Search input inside wrapper: transparent so parent's tint shows */
