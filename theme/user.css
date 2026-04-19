@@ -348,13 +348,6 @@ a[href^="/genre/podcasts-"] {
   display: none !important;
 }
 
-/* Hide any lingering podcast-filter button we'd injected earlier — defensive
-   in case a previously-loaded instance of the extension re-inserts it before
-   Spotify is fully reloaded after config changes. */
-[data-podcast-filter-btn] {
-  display: none !important;
-}
-
 /* Also hide Spotify-native podcast nav buttons if any */
 .Root__globalNav button[aria-label*="Podcast" i],
 .Root__globalNav a[aria-label*="Podcast" i],
@@ -421,16 +414,15 @@ a[href^="/genre/podcasts-"] {
   z-index: 1;
 }
 
-/* Hide Spotify's lyrics content unconditionally — our slot always takes over
-   when this container renders. No flash of the native UI before our JS
-   polling catches up. */
-.lyrics-lyrics-container > * {
+/* Hide Spotify's native lyrics only in the main view, where our slot takes
+   over. This avoids blanking any reused lyrics component outside the route. */
+.Root__main-view .lyrics-lyrics-container > * {
   display: none !important;
 }
 
-/* Show slot the instant Spotify's container appears anywhere in the DOM —
-   :has() re-evaluates synchronously, no 200ms poll delay. */
-body:has(.lyrics-lyrics-container) #lyrics-slot,
+/* Show the slot only for the main-view lyrics route. The scoped :has() keeps
+   the no-flash behavior without reacting to unrelated lyrics surfaces. */
+body:has(.Root__main-view .lyrics-lyrics-container) #lyrics-slot,
 body.on-lyrics-route #lyrics-slot {
   display: flex;
 }
@@ -731,9 +723,10 @@ body.playback-paused .vinyl-disc {
 
 /* ==================== Custom right panel ==================== */
 
-/* Hide Spotify's built-in NowPlayingView entirely — we replace it. */
-.Root__right-sidebar .NowPlayingView,
-.Root__right-sidebar aside > div > div:not(#custom-right-panel) {
+/* Hide Spotify's native right-sidebar mount. Our custom panel is appended as a
+   sibling under .Root__right-sidebar, so hiding the aside cleanly removes the
+   whole built-in subtree without blanking unrelated wrappers elsewhere. */
+.Root__right-sidebar aside {
   display: none !important;
 }
 
@@ -758,8 +751,9 @@ body.playback-paused .vinyl-disc {
   display: grid;
   grid-template-rows: auto 1fr auto auto auto auto;
   gap: 0.6rem;
+  height: 100%;
   min-height: 0;
-  align-content: center;
+  align-content: stretch;
 }
 
 .crp-context {
@@ -793,37 +787,41 @@ body.playback-paused .vinyl-disc {
 
 .crp-cover {
   width: 100%;
-  max-width: 260px;
+  max-width: none;
   aspect-ratio: 1;
-  max-height: 100%;
+  min-height: 0;
   margin: 0 auto;
   background-size: cover;
   background-position: center;
   background-color: rgba(255, 255, 255, 0.05);
   border-radius: 8px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
-  justify-self: center;
-  align-self: center;
+  justify-self: stretch;
+  align-self: stretch;
 }
 
 .crp-track-info {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  position: relative;
+  width: 100%;
   min-width: 0;
 }
 
 .crp-track-text {
-  flex: 1;
+  width: 100%;
   min-width: 0;
+  box-sizing: border-box;
+  padding: 0 34px;
   text-align: center;
 }
 
 .crp-btn.crp-like {
-  flex: none;
+  position: absolute;
+  top: 50%;
+  right: 0;
   width: 28px;
   height: 28px;
   padding: 6px;
+  transform: translateY(-50%);
 }
 
 .crp-btn.crp-like.active {
@@ -890,6 +888,13 @@ a.crp-link:hover {
   cursor: pointer;
 }
 
+.crp-vol-bar {
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+
 .crp-seek-fill,
 .crp-vol-fill {
   position: absolute;
@@ -897,6 +902,10 @@ a.crp-link:hover {
   width: 0;
   background: var(--lyrics-accent, #fff);
   border-radius: 2px;
+}
+
+.crp-vol-fill {
+  box-shadow: 0 0 8px rgba(var(--rgb-lyrics-accent, 255, 255, 255), 0.3);
 }
 
 .crp-seek-thumb,
@@ -1476,32 +1485,64 @@ a.crp-link:hover {
   transform: translateX(-50%) translateY(0);
 }
 
-/* ==================== Scrollbars (global hide) ==================== */
+/* ==================== Scrollbars (owned surfaces hide) ==================== */
 
-*,
-*::before,
-*::after {
+.main-view-container__scroll-node,
+.main-view-container,
+.Root__nav-bar,
+.Root__right-sidebar,
+#lyrics-slot,
+.lyrics-synced,
+.lyrics-unsynced,
+.cmd-results,
+.shortcut-modal,
+.crp-tab-pane {
   scrollbar-width: none !important;
   -ms-overflow-style: none !important;
 }
 
-*::-webkit-scrollbar,
-*::-webkit-scrollbar-track,
-*::-webkit-scrollbar-thumb,
-*::-webkit-scrollbar-corner {
+.main-view-container__scroll-node::-webkit-scrollbar,
+.main-view-container__scroll-node::-webkit-scrollbar-track,
+.main-view-container__scroll-node::-webkit-scrollbar-thumb,
+.main-view-container__scroll-node::-webkit-scrollbar-corner,
+.main-view-container::-webkit-scrollbar,
+.main-view-container::-webkit-scrollbar-track,
+.main-view-container::-webkit-scrollbar-thumb,
+.main-view-container::-webkit-scrollbar-corner,
+.Root__nav-bar::-webkit-scrollbar,
+.Root__nav-bar::-webkit-scrollbar-track,
+.Root__nav-bar::-webkit-scrollbar-thumb,
+.Root__nav-bar::-webkit-scrollbar-corner,
+.Root__right-sidebar::-webkit-scrollbar,
+.Root__right-sidebar::-webkit-scrollbar-track,
+.Root__right-sidebar::-webkit-scrollbar-thumb,
+.Root__right-sidebar::-webkit-scrollbar-corner,
+#lyrics-slot::-webkit-scrollbar,
+#lyrics-slot::-webkit-scrollbar-track,
+#lyrics-slot::-webkit-scrollbar-thumb,
+#lyrics-slot::-webkit-scrollbar-corner,
+.lyrics-synced::-webkit-scrollbar,
+.lyrics-synced::-webkit-scrollbar-track,
+.lyrics-synced::-webkit-scrollbar-thumb,
+.lyrics-synced::-webkit-scrollbar-corner,
+.lyrics-unsynced::-webkit-scrollbar,
+.lyrics-unsynced::-webkit-scrollbar-track,
+.lyrics-unsynced::-webkit-scrollbar-thumb,
+.lyrics-unsynced::-webkit-scrollbar-corner,
+.cmd-results::-webkit-scrollbar,
+.cmd-results::-webkit-scrollbar-track,
+.cmd-results::-webkit-scrollbar-thumb,
+.cmd-results::-webkit-scrollbar-corner,
+.shortcut-modal::-webkit-scrollbar,
+.shortcut-modal::-webkit-scrollbar-track,
+.shortcut-modal::-webkit-scrollbar-thumb,
+.shortcut-modal::-webkit-scrollbar-corner,
+.crp-tab-pane::-webkit-scrollbar,
+.crp-tab-pane::-webkit-scrollbar-track,
+.crp-tab-pane::-webkit-scrollbar-thumb,
+.crp-tab-pane::-webkit-scrollbar-corner {
   display: none !important;
   width: 0 !important;
   height: 0 !important;
   background: transparent !important;
-}
-
-.os-scrollbar,
-.simplebar-track,
-.simplebar-scrollbar,
-[class*="Scrollbar"],
-[class*="scrollbar-"] {
-  display: none !important;
-  visibility: hidden !important;
-  width: 0 !important;
-  height: 0 !important;
 }

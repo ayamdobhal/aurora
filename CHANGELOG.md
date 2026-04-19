@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.1.5 — 2026-04-20
+
+### Fixed
+- Tightened the custom right-panel replacement so Spotify's native sidebar mount is hidden without overbroad descendant selectors.
+- Scoped the lyrics takeover to the main-view lyrics route so reused lyrics containers elsewhere don't trigger the custom slot.
+- Limited scrollbar hiding to Aurora-owned surfaces instead of suppressing scrollbars app-wide.
+
+### Changed
+- Right-panel player layout now keeps the track details centered even with the like button present.
+- Album art in the right-panel player now scales with the available panel space instead of staying capped at a fixed size.
+- Volume slider now keeps the remaining range visible with a recessed track beneath the accent fill.
+
 ## v0.1.4 — 2026-04-19
 
 ### Added

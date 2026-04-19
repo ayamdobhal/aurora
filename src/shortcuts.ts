@@ -94,16 +94,20 @@
     return uri.replace(/^spotify:/, "/").replace(/:/g, "/");
   }
 
+  function hasMainViewLyrics(): boolean {
+    return !!document.querySelector(".Root__main-view .lyrics-lyrics-container");
+  }
+
   function toggleLyrics(): void {
     // Detect via DOM (instant) rather than body class (up to 200ms poll lag)
-    const onLyrics = !!document.querySelector(".lyrics-lyrics-container");
+    const onLyrics = hasMainViewLyrics();
     if (onLyrics) {
       // Spotify's push("/lyrics") may create multiple history entries (the
       // push + an internal redirect), so one back() leaves us on the middle
       // entry which still renders lyrics. Keep going back until the container
       // is actually gone, capped at 3 tries.
       const tryBack = (remaining: number): void => {
-        if (!document.querySelector(".lyrics-lyrics-container")) return;
+        if (!hasMainViewLyrics()) return;
         if (remaining <= 0) {
           // Fallback if back chain didn't exit
           Spicetify.Platform.History.push("/");

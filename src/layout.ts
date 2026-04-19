@@ -66,13 +66,16 @@
     true,
   );
 
-  // Detect Spotify's own lyrics view component rather than matching URL —
-  // /lyrics redirects on this build, so pathname never matches. When Spotify
-  // renders .lyrics-lyrics-container anywhere, treat as lyrics mode and let
-  // CSS hide its content so #lyrics-slot takes over.
+  // Detect Spotify's own lyrics view component inside the main view rather than
+  // matching URL — /lyrics redirects on this build, so pathname never matches.
+  // Scoping to .Root__main-view avoids tripping over any reused lyrics
+  // component outside the actual lyrics route.
+  function hasMainViewLyrics(): boolean {
+    return !!document.querySelector(".Root__main-view .lyrics-lyrics-container");
+  }
+
   function updateLyricsRoute(): void {
-    const onLyrics = !!document.querySelector(".lyrics-lyrics-container");
-    document.body.classList.toggle("on-lyrics-route", onLyrics);
+    document.body.classList.toggle("on-lyrics-route", hasMainViewLyrics());
   }
   updateLyricsRoute();
   window.setInterval(updateLyricsRoute, 200);
