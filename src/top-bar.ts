@@ -1,3 +1,8 @@
+import {
+  getFriendActivityButton,
+  onSubtreeMutation,
+} from "./lib/resolvers";
+
 (async function topBar() {
   while (!Spicetify?.Player) {
     await new Promise((r) => setTimeout(r, 100));
@@ -10,20 +15,6 @@
       Spicetify.SVGIcons?.["lyrics"] ??
       '<path d="M13.426 2.574a2.831 2.831 0 0 0-4.797 1.55l3.247 3.247a2.831 2.831 0 0 0 1.55-4.797zM10.5 8.118l-2.619-2.62A63303.13 63303.13 0 0 0 4.74 9.075L2.065 12.12a1.287 1.287 0 0 0 1.816 1.816l3.06-2.688 3.56-3.129zM7.12 4.094a4.331 4.331 0 1 1 4.786 4.786l-3.974 3.492-3.06 2.688a2.787 2.787 0 0 1-3.933-3.933l2.676-3.045 3.505-3.988z"/>'
     );
-  }
-
-  function findFriendButton(): HTMLButtonElement | null {
-    const selectors = [
-      'button[data-testid="buddy-feed-toggle"]',
-      'button[aria-label="Friend Activity" i]',
-      'button[aria-label*="Friend Activity" i]',
-      'button[aria-label*="friend" i]',
-    ];
-    for (const sel of selectors) {
-      const el = document.querySelector<HTMLButtonElement>(sel);
-      if (el) return el;
-    }
-    return null;
   }
 
   function onClickToggle(e: Event): void {
@@ -67,20 +58,23 @@
       syncActive(existing);
       return;
     }
-    const btn = findFriendButton();
+    const btn = getFriendActivityButton();
     if (btn) swapButton(btn);
   }
 
-  // Spotify re-renders the top bar — poll to re-swap when our clone disappears.
-  window.setInterval(ensureSwapped, 500);
+  // Spotify re-renders the top bar — watch for any DOM change (rAF-throttled)
+  // and re-swap when our clone disappears. Replaces the old 500ms polling.
   ensureSwapped();
+  onSubtreeMutation(document.body, ensureSwapped);
 
-  // Reflect route changes in the button's active state.
-  const observer = new MutationObserver(() => {
+  // Narrow observer for body class changes — active state depends on the
+  // `on-lyrics-route` class that layout.ts toggles. Distinct from the
+  // subtree observer above; attribute mutations wouldn't fire on childList.
+  const classObs = new MutationObserver(() => {
     const el = document.querySelector<HTMLElement>(`[${MARK_ATTR}="1"]`);
     if (el) syncActive(el);
   });
-  observer.observe(document.body, {
+  classObs.observe(document.body, {
     attributes: true,
     attributeFilter: ["class"],
   });

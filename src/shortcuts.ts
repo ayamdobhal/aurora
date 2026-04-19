@@ -1,3 +1,5 @@
+import { getSpotifyLyricsContainer } from "./lib/resolvers";
+
 (async function shortcuts() {
   while (!Spicetify?.Player || !Spicetify?.Platform?.History) {
     await new Promise((r) => setTimeout(r, 100));
@@ -95,11 +97,13 @@
   }
 
   function hasMainViewLyrics(): boolean {
-    return !!document.querySelector(".Root__main-view .lyrics-lyrics-container");
+    return !!getSpotifyLyricsContainer();
   }
 
   function toggleLyrics(): void {
-    // Detect via DOM (instant) rather than body class (up to 200ms poll lag)
+    // Detect via DOM (instant) rather than body class (body class only
+    // updates on the next DOM mutation tick, which can lag behind History
+    // push when a redirect happens in the same task).
     const onLyrics = hasMainViewLyrics();
     if (onLyrics) {
       // Spotify's push("/lyrics") may create multiple history entries (the

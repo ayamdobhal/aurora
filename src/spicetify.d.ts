@@ -9,6 +9,18 @@ declare global {
     CosmosAsync: SpicetifyCosmosAsync;
     GraphQL?: SpicetifyGraphQL;
     SVGIcons?: Record<string, string>;
+    Webpack?: SpicetifyWebpack;
+  }
+
+  // Minimal surface of Spicetify.Webpack. Shape varies across builds — treat
+  // these as best-effort hooks into Spotify's bundled modules; always guard
+  // with optional chaining and wrap predicates in try/catch (some exported
+  // modules throw when read via `in`).
+  interface SpicetifyWebpack {
+    find?: (predicate: (m: unknown) => boolean) => unknown;
+    findByProps?: (...props: string[]) => unknown;
+    moduleCache?: Record<string, { exports?: unknown } | undefined>;
+    chunks?: unknown[];
   }
 
   interface GraphQLDef {

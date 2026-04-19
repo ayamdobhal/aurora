@@ -1,3 +1,5 @@
+import { onSubtreeMutation, waitFor } from "./lib/resolvers";
+
 (async function lyrics() {
   while (
     !Spicetify?.Player?.addEventListener ||
@@ -449,25 +451,23 @@
     }
   }
 
-  const waitForSlot = window.setInterval(() => {
-    if (document.getElementById("lyrics-slot")) {
-      window.clearInterval(waitForSlot);
-      Spicetify.Player.addEventListener("songchange", render);
-      render();
+  // Block until layout.ts has mounted our slot, then wire rendering.
+  const initialSlot = await waitFor(() =>
+    document.getElementById("lyrics-slot"),
+  );
+  if (!initialSlot) return;
+  Spicetify.Player.addEventListener("songchange", render);
+  render();
 
-      // Slot may get wiped by React re-renders; layout.ts re-injects empty.
-      // When that happens, force a re-render so lyrics content returns.
-      window.setInterval(() => {
-        const slot = document.getElementById("lyrics-slot");
-        if (
-          slot &&
-          slot.innerHTML === "" &&
-          Spicetify.Player.data?.item
-        ) {
-          currentUri = null;
-          render();
-        }
-      }, 1000);
+  // React re-renders can replace the slot with a fresh empty one (layout.ts
+  // re-injects it). A subtree observer catches the replacement on the next
+  // frame instead of polling every second; when the slot re-appears empty
+  // and a track is loaded, force a re-render.
+  onSubtreeMutation(document.body, () => {
+    const slot = document.getElementById("lyrics-slot");
+    if (slot && slot.innerHTML === "" && Spicetify.Player.data?.item) {
+      currentUri = null;
+      render();
     }
-  }, 250);
+  });
 })();

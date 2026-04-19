@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.1.6 — 2026-04-20
+
+### Added
+- Recent tab is now truly paginated — first 30 items on mount, next 30 as you scroll, live refresh via Spotify's `PlayHistoryAPI` / `RecentlyPlayedAPI` `update` events. No more full-history payload in memory.
+
+### Changed
+- Lyrics view uses container queries + `ch`-based wrap: active and inactive lines share identical wrap points, so a line that fits on one row at rest stays one row when it becomes active — no mid-playback layout jump. Font sizes now scale with the actual panel width.
+- Right-panel player album art stays square at any panel aspect ratio (was getting stretched by the grid row).
+
+### Fixed
+- Right panel no longer renders blank — the resolver was matching Spotify's inner hidden `<aside>` via the "Now playing" aria-label instead of the outer `.Root__right-sidebar` grid cell, so the panel was being mounted inside a `display: none` subtree.
+- Recent tab updates again after the refactor — the `(offset, limit)` signature was a cache slicer that returned partial data against an unpopulated cache; no-args `getContents()` is what actually triggers cache population and wire fetches.
+- Recent list no longer shrinks below the loaded count when the response includes non-track items (podcasts / episodes); the normalize window now reads past the raw-slice boundary until it accumulates the requested count of actual tracks.
+
+### Internal
+- New `src/lib/resolvers.ts` — single-resolver pattern centralizing every Spotify-DOM anchor and React-internal lookup with `data-testid` → `aria-*` → class fallback chains. Future Spotify class-name churn is a one-file patch instead of a hunt across extensions.
+- Polling loops for panel re-injection (layout, right panel, top-bar friend-button clone) replaced with `MutationObserver`s — responsive on the next frame instead of up to 500 ms after a React wipe.
+
 ## v0.1.5 — 2026-04-20
 
 ### Fixed

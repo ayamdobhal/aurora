@@ -460,8 +460,17 @@ body.on-lyrics-route #lyrics-slot {
 }
 
 .lyrics-synced {
+  /* container-type: inline-size makes descendants' cqw units resolve
+     against this element's rendered width. Lyric-line font sizes are
+     specified in cqw below, so on panel resize the type scales smoothly
+     with the available width instead of being pinned to viewport or a
+     fixed px cap. Width is full-parent with a generous upper bound for
+     very wide displays; readability below the min-clamp is the only
+     reason to keep max-width at all. */
+  container-type: inline-size;
   width: 100%;
-  max-width: 900px;
+  max-width: 1600px;
+  margin: 0 auto;
   height: 100%;
   overflow-y: auto;
   padding: 40vh 2rem;
@@ -498,11 +507,23 @@ body.on-lyrics-route #lyrics-slot {
 }
 
 .lyric-line {
-  font-size: 3rem;
+  /* cqw sizing: 3% of the lyrics container's inline width, clamped so
+     narrow sidebar widths don't go illegibly small and huge displays
+     don't cross into absurdly large. Active font below uses the same
+     scheme so both states rescale in proportion on panel resize. */
+  font-size: clamp(1.75rem, 3cqw, 3rem);
   font-weight: 700;
   color: rgba(255, 255, 255, 0.45);
   padding: 0.8rem 0;
   line-height: 1.2;
+  /* max-width in `ch` → the line wraps at the same character count
+     whether the font is base or active, because `ch` is relative to the
+     element's OWN font-size. That's the one CSS unit that lets two
+     different font sizes share an identical wrap point. Centered via
+     auto margins since text-align doesn't center block elements. */
+  max-width: 35ch;
+  margin-left: auto;
+  margin-right: auto;
   transition:
     color 250ms ease,
     opacity 250ms ease,
@@ -536,7 +557,13 @@ body.on-lyrics-route #lyrics-slot {
 
 .lyric-line.active {
   filter: blur(0);
-  font-size: 5.5rem;
+  /* Active scales up with container width too (5cqw vs base 3cqw ≈ 1.67×),
+     bounded so narrow panels still get a visible-but-not-tiny emphasis
+     and wide panels don't balloon past typical reading limits. Lines long
+     enough to wrap at the active size also wrap at base since both sizes
+     are tied to the same container width — the "1 line at base, 2 at
+     active" mismatch doesn't happen in the sizes this clamp permits. */
+  font-size: clamp(2.5rem, 5cqw, 4.8rem);
   font-weight: 800;
   line-height: 1.1;
   color: var(--lyrics-accent, #fff);
@@ -811,9 +838,17 @@ body.playback-paused .vinyl-disc {
 }
 
 .crp-cover {
-  width: 100%;
-  max-width: none;
+  /* Largest square that fits the grid cell. aspect-ratio drives the shape;
+     height: 100% + width: auto lets the browser compute width from height,
+     and max-width: 100% clamps if the cell is narrower than tall (the
+     ratio is preserved as the clamp cascades). justify-self / align-self
+     must NOT be stretch here, or they override aspect-ratio and revert
+     us to a rectangular cover cropped by background-size: cover. */
   aspect-ratio: 1;
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+  max-height: 100%;
   min-height: 0;
   margin: 0 auto;
   background-size: cover;
@@ -821,8 +856,7 @@ body.playback-paused .vinyl-disc {
   background-color: rgba(255, 255, 255, 0.05);
   border-radius: 8px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
-  justify-self: stretch;
-  align-self: stretch;
+  place-self: center;
 }
 
 .crp-track-info {

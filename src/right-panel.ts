@@ -1,7 +1,18 @@
+import { getRightSidebar, maintainInjection } from "./lib/resolvers";
+
 (async function rightPanel() {
   while (!Spicetify?.Player?.addEventListener || !Spicetify?.Player?.data) {
     await new Promise((r) => setTimeout(r, 100));
   }
+
+  // Flip to true to see recent-tab lifecycle in the devtools console.
+  // Looks for `[crp-recent]` prefix — filter on that in the console search.
+  const DEBUG_RECENT = false;
+  const logR = (...args: unknown[]): void => {
+    if (!DEBUG_RECENT) return;
+    // eslint-disable-next-line no-console
+    console.log("[crp-recent]", ...args);
+  };
 
   type TabId = "queue" | "recent" | "friends";
 
@@ -271,8 +282,11 @@
     });
     const bar = panelEl.querySelector<HTMLElement>(".crp-tab-bar");
     if (bar) bar.dataset.active = id;
-    // Kick a background refresh — diff cache + probe cache make this cheap.
-    if (id === "recent") refreshRecent();
+    // Recents are kept fresh via the RecentsAPI 'update' event subscription,
+    // so a tab-switch normally needs no fetch — just re-render from state to
+    // refresh the relative timestamps ("5m ago" → current). Friends has no
+    // event, so it still does a background re-fetch on switch.
+    if (id === "recent") renderRecentList();
     else if (id === "friends") refreshFriends();
   }
 
@@ -1049,61 +1063,84 @@
       | undefined;
   }
 
-  const RECENT_METHODS = [
-    "getContents", // RecentsAPI
-    "getRecentlyPlayed",
-    "getRecents",
-    "getItems",
-    "getContextualItems",
-    "getHistory",
-    "getPlayHistory",
-    "getState",
-    "fetch",
-  ];
-
   // Cache the winning probe so we don't re-run ~15 failing attempts each poll.
-  let recentWinner: { label: string; fn: () => Promise<unknown> | undefined } | null = null;
   let friendsWinner: { label: string; fn: () => Promise<unknown> | undefined } | null = null;
 
-  async function fetchRecent(): Promise<RecentItem[]> {
-    const apiNames = ["RecentsAPI", "PlayHistoryAPI", "RecentlyPlayedAPI"];
-    const attempts: Array<[string, () => Promise<unknown> | undefined]> = [];
-    for (const n of apiNames) {
-      const a = apiOf(n);
-      if (!a) continue;
-      for (const m of RECENT_METHODS) {
-        if (typeof a[m] === "function") {
-          // Try no-args variant first, then with limit
-          attempts.push([`${n}.${m}()`, () => a[m]?.()]);
-          attempts.push([`${n}.${m}(30)`, () => a[m]?.(30)]);
-          attempts.push([`${n}.${m}({limit:30})`, () => a[m]?.({ limit: 30 })]);
-        }
+  // Fetch the raw recents list from Spotify's cache. We call no-args because
+  // that's the signature that actually triggers cache population on this
+  // build; `(offset, limit)` turned out to be a dumb slicer over the current
+  // cache contents and returns partial data against an unpopulated cache.
+  //
+  // The returned array is a reference to Spotify's internal list (~12K items
+  // for heavy users). This function intentionally does NOT normalize the
+  // whole thing — callers slice a window and normalize only that slice, so
+  // our long-lived state stays at just the displayed items. The raw array
+  // goes out of scope and GC reclaims it between calls.
+  async function fetchRecentsRaw(): Promise<unknown[]> {
+    const api = apiOf("RecentsAPI");
+    const fn = api?.getContents;
+    if (typeof fn !== "function") {
+      logR("fetchRecentsRaw: RecentsAPI.getContents unavailable");
+      return [];
+    }
+    try {
+      const res = await (fn as () => Promise<unknown>).call(api);
+      const arr = pickArray(res);
+      if (!arr) {
+        logR("fetchRecentsRaw: pickArray empty", res);
+        return [];
       }
+      return arr;
+    } catch (err) {
+      logR("fetchRecentsRaw error", err);
+      return [];
     }
+  }
 
-    let raw: unknown = null;
-    if (recentWinner) {
-      try {
-        raw = await tryOne(recentWinner.fn);
-      } catch {
-        recentWinner = null;
+  // Read raw items starting at `start`, normalizing each one, until we've
+  // accumulated `wanted` valid tracks (or run out of raw). Reading by
+  // "wanted track count" rather than "raw slice end" is important because
+  // normalizeRecentItem filters out non-tracks (episodes etc.), and a naive
+  // slice[0..30] can yield far fewer than 30 tracks — which is the source
+  // of the mysterious "list keeps shrinking below 30" bug.
+  function normalizeWindow(
+    raw: unknown[],
+    start: number,
+    wanted: number,
+  ): { items: RecentItem[]; consumed: number } {
+    const items: RecentItem[] = [];
+    let i = start;
+    while (i < raw.length && items.length < wanted) {
+      const n = normalizeRecentItem(raw[i]);
+      if (n) items.push(n);
+      i++;
+    }
+    return { items, consumed: i - start };
+  }
+
+  // RecentsAPI caches getContents() results with a 1-hour TTL. After a
+  // songchange, the cache still holds the old list — that's why the 2-second
+  // retry alone doesn't work, the cache simply hasn't been invalidated yet.
+  // Clear the internal cache object so the next getContents() call goes to
+  // the wire. Pokes at a `_`-prefixed "private" field; wrapped in try/catch
+  // because the exact shape can shift across Spicetify versions.
+  function bustRecentsCache(): void {
+    try {
+      const api = apiOf("RecentsAPI") as unknown as
+        | { _cache?: { _cache?: Record<string, unknown>; clear?: () => void } }
+        | undefined;
+      const c = api?._cache;
+      if (!c) return;
+      if (typeof c.clear === "function") {
+        c.clear();
+        logR("bustRecentsCache: cleared via .clear()");
+      } else if (c._cache) {
+        c._cache = {};
+        logR("bustRecentsCache: cleared via _cache._cache = {}");
       }
+    } catch (err) {
+      logR("bustRecentsCache threw", err);
     }
-    if (raw == null) {
-      const hit = await probeAttempts(attempts);
-      if (!hit) return [];
-      recentWinner = { label: hit.hit, fn: hit.fn };
-      raw = hit.raw;
-    }
-
-    const arr = pickArray(raw);
-    if (!arr || arr.length === 0) return [];
-    const out: RecentItem[] = [];
-    for (const item of arr) {
-      const n = normalizeRecentItem(item);
-      if (n) out.push(n);
-    }
-    return out;
   }
 
   // Finds the first array we can identify in a common wrapper shape. Handles
@@ -1205,17 +1242,135 @@
     });
   }
 
-  let lastRecentKey = "";
-  async function refreshRecent(force = false): Promise<void> {
+  // Truly paginated recents. recentItems holds what's currently on screen:
+  // a prefix of optimistic (client-side, pending server confirmation) entries
+  // followed by server-backed entries. On mount we fetch the first page;
+  // scroll-to-bottom fetches the next page; the RecentsAPI 'update' event
+  // refreshes the server-backed portion in place without disturbing either
+  // scroll position or optimistic entries.
+  //
+  // `recentRawConsumed` records how many raw items we've walked to produce
+  // the current server-backed portion. We track raw-index (not track-index)
+  // because normalizeRecentItem filters out non-track entries, so "next
+  // page" means "raw[consumed..] yielding RECENT_PAGE_SIZE more tracks".
+  const RECENT_PAGE_SIZE = 30;
+  let recentItems: RecentItem[] = [];
+  let recentRawConsumed = 0;
+  let recentExhausted = false;
+  let recentLoading = false;
+
+  async function refreshRecent(reset = false): Promise<void> {
+    logR("refreshRecent called, reset =", reset, "; panelEl?", !!panelEl);
+    if (!panelEl) return;
+    if (reset) {
+      bustRecentsCache();
+      recentExhausted = false;
+      recentRawConsumed = 0;
+    }
+    const raw = await fetchRecentsRaw();
+    if (!panelEl) return;
+    // Refresh the server-backed window of however many items we've already
+    // loaded — so deep-scrolled users see their whole range stay fresh.
+    // Minimum one page on reset / first load.
+    const wanted =
+      reset || recentItems.length === 0
+        ? RECENT_PAGE_SIZE
+        : recentItems.length;
+    const { items: fresh, consumed } = normalizeWindow(raw, 0, wanted);
+    const prevFirst = recentItems[0]?.uri;
+    recentItems = fresh;
+    recentRawConsumed = consumed;
+    recentExhausted = consumed >= raw.length;
+    logR(
+      `refreshRecent: raw=${raw.length}, consumed=${consumed}, items=${fresh.length}, exhausted=${recentExhausted}; first ${prevFirst} → ${recentItems[0]?.uri} (changed? ${prevFirst !== recentItems[0]?.uri})`,
+    );
+    renderRecentList();
+  }
+
+  function renderRecentList(): void {
     if (!panelEl) return;
     const container = panelEl.querySelector<HTMLElement>(".crp-recent-list");
     if (!container) return;
-    const list = await fetchRecent();
-    const key = list.map((t) => t.uri).join("|");
-    if (!force && key === lastRecentKey) return;
-    lastRecentKey = key;
-    const rows = list.map((t) => ({ ...t, subExtra: relTime(t.playedAt) }));
+    // The .crp-tab-pane wrapping this list is the actual scroll container
+    // (CSS: overflow-y: auto). Preserve its scrollTop across renders so
+    // load-more and update-event refreshes don't yank the user to the top.
+    const pane = container.closest<HTMLElement>(".crp-tab-pane");
+    const prevScroll = pane?.scrollTop ?? 0;
+    const rows = recentItems.map((t) => ({
+      ...t,
+      subExtra: relTime(t.playedAt),
+    }));
     renderSimpleList(container, rows, "No recent tracks");
+    if (pane) pane.scrollTop = prevScroll;
+    logR(
+      "renderRecentList: rendered",
+      rows.length,
+      "items; exhausted?",
+      recentExhausted,
+    );
+  }
+
+  async function loadMoreRecent(): Promise<void> {
+    if (recentLoading || recentExhausted || !panelEl) return;
+    recentLoading = true;
+    try {
+      const raw = await fetchRecentsRaw();
+      if (!panelEl) return;
+      const { items: more, consumed } = normalizeWindow(
+        raw,
+        recentRawConsumed,
+        RECENT_PAGE_SIZE,
+      );
+      recentRawConsumed += consumed;
+      recentItems = [...recentItems, ...more];
+      recentExhausted = recentRawConsumed >= raw.length;
+      logR(
+        `loadMoreRecent: raw=${raw.length}, consumed=${recentRawConsumed}, now displaying=${recentItems.length}, exhausted=${recentExhausted}`,
+      );
+      renderRecentList();
+    } finally {
+      recentLoading = false;
+    }
+  }
+
+
+  // Attaches a rAF-throttled scroll listener to the tab pane. Fires
+  // loadMoreRecent when the user is within 400px of the bottom (tuned with
+  // some runway since each next-page fetch is a real network call now).
+  function wireRecentInfiniteScroll(pane: HTMLElement): void {
+    logR(
+      "wireRecentInfiniteScroll: attached to pane",
+      pane,
+      "; initial scrollHeight =",
+      pane.scrollHeight,
+      "clientHeight =",
+      pane.clientHeight,
+    );
+    let rafPending = false;
+    let logCounter = 0;
+    pane.addEventListener(
+      "scroll",
+      () => {
+        if (rafPending) return;
+        rafPending = true;
+        requestAnimationFrame(() => {
+          rafPending = false;
+          const { scrollTop, scrollHeight, clientHeight } = pane;
+          // Log every 10th scroll tick so we can see movement without flooding.
+          if (++logCounter % 10 === 0) {
+            logR(
+              `scroll tick: top=${Math.round(scrollTop)}, client=${clientHeight}, height=${scrollHeight}, loading=${recentLoading}, exhausted=${recentExhausted}`,
+            );
+          }
+          if (recentLoading || recentExhausted) return;
+          if (scrollTop + clientHeight >= scrollHeight - 400) {
+            logR("scroll: near bottom, triggering loadMoreRecent");
+            void loadMoreRecent();
+          }
+        });
+      },
+      { passive: true },
+    );
   }
 
   // ==================== Friends tab ====================
@@ -1652,10 +1807,7 @@
 
   // ==================== Injection ====================
 
-  function inject(): void {
-    if (document.getElementById("custom-right-panel")) return;
-    const sidebar = document.querySelector<HTMLElement>(".Root__right-sidebar");
-    if (!sidebar) return;
+  function mount(sidebar: HTMLElement): void {
     panelEl = build();
     sidebar.appendChild(panelEl);
     // Wire list-container event delegation once per panel lifetime. With
@@ -1667,6 +1819,13 @@
     if (queueList) wireQueueDelegation(queueList);
     if (recentList) wireSimpleListDelegation(recentList);
     if (friendsList) wireFriendsDelegation(friendsList);
+    // Recents uses infinite scroll over a 12K-item in-memory list; the
+    // pane (not the inner list) is the scroll container. Listener attaches
+    // here once per mount; the pane lives for the panel's lifetime.
+    const recentPane = panelEl.querySelector<HTMLElement>(
+      '.crp-tab-pane[data-pane="recent"]',
+    );
+    if (recentPane) wireRecentInfiniteScroll(recentPane);
     wirePlayerContextMenu(panelEl);
     syncTrackInfo();
     syncPlayPause();
@@ -1676,34 +1835,41 @@
     setActiveTab(activeTab);
     // Re-populate tabs after re-inject (React may wipe our subtree).
     lastQueueKey = "";
-    lastRecentKey = "";
     lastFriendsKey = "";
+    recentItems = [];
+    recentRawConsumed = 0;
+    recentExhausted = false;
+    recentLoading = false;
     refreshQueue(true);
     refreshRecent(true);
     refreshFriends(true);
   }
 
-  // Spotify React may wipe the sidebar tree; re-inject when that happens.
-  window.setInterval(() => {
-    const existing = document.getElementById("custom-right-panel");
-    if (!existing) {
-      inject();
-    } else if (!existing.isConnected) {
+  // React may wipe the sidebar tree at any time. maintainInjection watches
+  // the body for mutations (rAF-throttled) and re-mounts when our panel is
+  // missing or disconnected — responsive on the next frame rather than up
+  // to 500ms later with a polling loop.
+  maintainInjection({
+    target: getRightSidebar,
+    exists: () => document.getElementById("custom-right-panel"),
+    mount: (sidebar) => {
       panelEl = null;
-      inject();
-    }
-  }, 500);
-
-  inject();
+      mount(sidebar);
+    },
+  });
 
   Spicetify.Player.addEventListener("songchange", () => {
+    logR(
+      "songchange fired; new track =",
+      Spicetify.Player.data?.item?.uri,
+    );
     syncTrackInfo();
     syncLikeState();
     refreshQueue();
-    refreshRecent();
-    // Spotify's recents can lag the songchange event by a couple seconds —
-    // retry so the just-finished track lands in the list.
-    window.setTimeout(() => refreshRecent(true), 2000);
+    // Recents refresh is driven purely by Spotify's PlayHistoryAPI /
+    // RecentlyPlayedAPI 'update' events (subscribed below). The list may
+    // lag the currently-playing track by a few seconds, but stays
+    // consistent with server truth — no local optimistic drift.
   });
   Spicetify.Player.addEventListener("onplaypause", syncPlayPause);
 
@@ -1711,13 +1877,143 @@
   // other clients). If the library events API isn't present, fall back to
   // the post-toggle re-sync we already do.
   libraryApi()?.getEvents?.()?.addListener?.("update", syncLikeState);
+
+  // Subscribe to "update" events on any recents-adjacent API that has them.
+  // RecentsAPI itself (the one .getContents() reads from) doesn't expose
+  // getEvents on this build; PlayHistoryAPI and RecentlyPlayedAPI do.
+  // Subscribing to whichever ones exist and de-duping via refreshRecent's
+  // pagination-preserving semantics gives us a free ride on any of them
+  // firing — cheapest way to stay in sync with server-side recents updates
+  // without polling.
+  {
+    type EventsObject = {
+      addListener?: (name: string, fn: () => void) => void;
+      on?: (name: string, fn: () => void) => void;
+      subscribe?: (name: string, fn: () => void) => void;
+    };
+    type ApiWithEvents = {
+      getEvents?: () => EventsObject | undefined;
+      addListener?: (name: string, fn: () => void) => void;
+      on?: (name: string, fn: () => void) => void;
+    };
+    const sources = ["RecentsAPI", "PlayHistoryAPI", "RecentlyPlayedAPI"];
+    for (const name of sources) {
+      const api = apiOf(name) as unknown as ApiWithEvents | undefined;
+      if (!api) continue;
+      const events = api.getEvents?.();
+      // Try the events object first (getEvents() pattern — PlayHistoryAPI /
+      // RecentlyPlayedAPI on this build), then the API itself (some builds
+      // expose addListener directly on the API surface).
+      const target = events ?? api;
+      const add =
+        (target as EventsObject).addListener ??
+        (target as EventsObject).on ??
+        (target as EventsObject).subscribe;
+      if (!add) {
+        logR(`${name}: no listener-registration method (events?`, !!events, ")");
+        continue;
+      }
+      try {
+        add.call(target, "update", () => {
+          logR(`${name} 'update' event fired — refreshing`);
+          refreshRecent(false);
+        });
+        logR(`Subscribed to ${name} 'update' events via`, target === events ? "getEvents()" : "api direct");
+      } catch (err) {
+        logR(`Failed to subscribe to ${name}`, err);
+      }
+    }
+  }
+
+  // One-time inspection of what the recents-related platform APIs expose.
+  // The output tells us whether any of them has a `.getEvents()` (like
+  // LibraryAPI does) that we can subscribe to instead of polling.
+  if (DEBUG_RECENT) {
+    for (const n of ["RecentsAPI", "PlayHistoryAPI", "RecentlyPlayedAPI"]) {
+      const a = apiOf(n);
+      if (!a) continue;
+      const keys = Object.keys(a).join(", ");
+      const proto = Object.getPrototypeOf(a);
+      const protoKeys = proto
+        ? Object.getOwnPropertyNames(proto).join(", ")
+        : "(none)";
+      logR(`API shape: ${n} own keys = [${keys}]; proto methods = [${protoKeys}]`);
+      const evts = (a as unknown as { getEvents?: () => unknown }).getEvents;
+      if (typeof evts === "function") {
+        try {
+          const ev = evts.call(a);
+          if (ev && typeof ev === "object") {
+            const evKeys = Object.keys(ev).join(", ");
+            const evProto = Object.getPrototypeOf(ev);
+            const evProtoKeys = evProto
+              ? Object.getOwnPropertyNames(evProto).join(", ")
+              : "(none)";
+            logR(
+              `API shape: ${n}.getEvents() own = [${evKeys}]; proto = [${evProtoKeys}]`,
+            );
+          } else {
+            logR(`API shape: ${n}.getEvents() =`, ev);
+          }
+        } catch (err) {
+          logR(`API shape: ${n}.getEvents() threw`, err);
+        }
+      }
+    }
+    // Pagination probe — test which method/arg combination returns a
+    // bounded count vs the full 12K history. If one returns exactly 30,
+    // we switch fetchRecent to use that signature and load on demand.
+    void (async () => {
+      const methods = ["getContents", "getRecentlyPlayed", "getPlayHistory", "getHistory"];
+      const variants: Array<[string, unknown[]]> = [
+        ["({limit:30})", [{ limit: 30 }]],
+        ["({limit:30,offset:0})", [{ limit: 30, offset: 0 }]],
+        ["({limit:30,offset:30})", [{ limit: 30, offset: 30 }]],
+        ["(30)", [30]],
+        ["(0,30)", [0, 30]],
+        ["({pageSize:30,pageIndex:0})", [{ pageSize: 30, pageIndex: 0 }]],
+        ["({first:30})", [{ first: 30 }]],
+        ["({count:30})", [{ count: 30 }]],
+      ];
+      const results: Array<{ label: string; count: number }> = [];
+      for (const n of ["RecentsAPI", "PlayHistoryAPI", "RecentlyPlayedAPI"]) {
+        const a = apiOf(n);
+        if (!a) continue;
+        for (const m of methods) {
+          if (typeof a[m] !== "function") continue;
+          for (const [argLabel, args] of variants) {
+            try {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const p = (a[m] as any)(...args);
+              if (!p || typeof p.then !== "function") continue;
+              const res = await p;
+              const arr = pickArray(res);
+              if (arr) results.push({ label: `${n}.${m}${argLabel}`, count: arr.length });
+            } catch {
+              // swallow — probing for shape, not correctness
+            }
+          }
+        }
+      }
+      results.sort((a, b) => a.count - b.count);
+      logR(`paginationProbe: ${results.length} successful calls`);
+      for (const r of results) {
+        logR(`  ${r.label} → count=${r.count}`);
+      }
+    })();
+  }
   startProgressLoop();
   refreshQueue();
-  refreshRecent();
   refreshFriends();
+  // refreshRecent is kicked off by mount() (on initial load) and by the
+  // RecentsAPI 'update' subscription (on updates) — no interval needed.
   window.setInterval(refreshQueue, 2000);
-  window.setInterval(refreshRecent, 30000);
   window.setInterval(refreshFriends, 30000);
+  // Re-render recents once a minute so relative timestamps ("5m ago")
+  // advance on minute boundaries. No fetch — just rebuilds rows from the
+  // currently-loaded recentItems.
+  window.setInterval(() => {
+    if (recentItems.length > 0) renderRecentList();
+  }, 60000);
 
   // Spicetify's onshuffleupdate/onrepeatupdate events are unreliable — poll
   // instead. Also catches volume changes from external sources (media keys).

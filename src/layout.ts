@@ -1,3 +1,11 @@
+import {
+  getMainView,
+  getMainViewBanner,
+  getSpotifyLyricsContainer,
+  maintainInjection,
+  onSubtreeMutation,
+} from "./lib/resolvers";
+
 (async function layout() {
   while (!Spicetify?.Player || !Spicetify?.Platform?.History) {
     await new Promise((r) => setTimeout(r, 100));
@@ -11,46 +19,26 @@
   Spicetify.Player.addEventListener("onplaypause", syncPlaybackState);
   syncPlaybackState();
 
-  function injectLyricsSlot(): void {
-    if (document.getElementById("lyrics-slot")) return;
-    const mainView = document.querySelector(".Root__main-view");
-    if (!mainView) return;
-    const slot = document.createElement("div");
-    slot.id = "lyrics-slot";
-    mainView.appendChild(slot);
-  }
-
-  window.setInterval(injectLyricsSlot, 500);
-  injectLyricsSlot();
+  // Keep #lyrics-slot mounted inside the main view. React re-renders can
+  // wipe our subtree at any time; maintainInjection re-mounts on the next
+  // frame via a MutationObserver instead of busy-polling.
+  maintainInjection({
+    target: getMainView,
+    exists: () => document.getElementById("lyrics-slot"),
+    mount: (mainView) => {
+      const slot = document.createElement("div");
+      slot.id = "lyrics-slot";
+      mainView.appendChild(slot);
+    },
+  });
 
   // Fade artist/album/profile banner on scroll. OverlayScrollbars virtualizes
   // the main-view scroll so CSS scroll-timeline can't see it. Listen to ALL
   // scroll events via capture phase; whichever element actually scrolls, we
-  // use its scrollTop to compute header opacity.
-  // The artist page paints its banner onto a hashed-class div with inline
-  // background-image — not on .main-entityHeader-container. Find any element
-  // inside the main view (not sidebars) that has an inline bg image, is wide
-  // enough to be a banner, and sits near the top of the scroll container.
-  function findBanner(): HTMLElement | null {
-    const mainView = document.querySelector<HTMLElement>(".Root__main-view");
-    if (!mainView) return null;
-    const candidates = mainView.querySelectorAll<HTMLElement>(
-      '[style*="background-image"]',
-    );
-    for (const el of candidates) {
-      const style = el.getAttribute("style") || "";
-      if (!/url\(/i.test(style)) continue;
-      if (/placeholder|gradient/i.test(style)) continue;
-      const rect = el.getBoundingClientRect();
-      if (rect.width >= 200 && rect.height >= 100 && rect.top < 400) {
-        return el;
-      }
-    }
-    return null;
-  }
-
+  // use its scrollTop to compute header opacity. Banner lookup delegates to
+  // resolvers (heuristic over inline bg-image styles near the top).
   function applyHeaderFade(scrollEl: HTMLElement): void {
-    const banner = findBanner();
+    const banner = getMainViewBanner();
     if (!banner) return;
     const range = Math.max(1, window.innerHeight * 0.4);
     const opacity = Math.max(0, 1 - (scrollEl.scrollTop || 0) / range);
@@ -66,18 +54,17 @@
     true,
   );
 
-  // Detect Spotify's own lyrics view component inside the main view rather than
-  // matching URL — /lyrics redirects on this build, so pathname never matches.
-  // Scoping to .Root__main-view avoids tripping over any reused lyrics
-  // component outside the actual lyrics route.
-  function hasMainViewLyrics(): boolean {
-    return !!document.querySelector(".Root__main-view .lyrics-lyrics-container");
-  }
-
+  // Detect Spotify's own lyrics view mounted inside the main view rather
+  // than matching URL — /lyrics redirects on this build, so pathname never
+  // matches. A subtree observer catches mount/unmount, plus we still hook
+  // History.listen for the case where a navigation precedes the DOM change.
   function updateLyricsRoute(): void {
-    document.body.classList.toggle("on-lyrics-route", hasMainViewLyrics());
+    document.body.classList.toggle(
+      "on-lyrics-route",
+      !!getSpotifyLyricsContainer(),
+    );
   }
   updateLyricsRoute();
-  window.setInterval(updateLyricsRoute, 200);
+  onSubtreeMutation(document.body, updateLyricsRoute);
   Spicetify.Platform.History.listen?.(updateLyricsRoute);
 })();
