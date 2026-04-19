@@ -733,6 +733,21 @@
       }
     });
 
+    container.addEventListener("contextmenu", (e) => {
+      const row = rowOf(e);
+      if (!row) return;
+      e.preventDefault();
+      const idx = parseInt(row.dataset.idx ?? "-1", 10);
+      const t = cachedQueue[idx];
+      if (!t) return;
+      menuForRowEvent(e, {
+        uri: t.uri,
+        artistUri: t.artistUri,
+        albumUri: t.albumUri,
+        queueIdx: idx,
+      }).then((items) => showContextMenu(items, e.clientX, e.clientY));
+    });
+
     container.addEventListener("drop", (e) => {
       const row = rowOf(e);
       if (!row) return;
@@ -761,6 +776,7 @@
       opts: unknown,
     ) => Promise<unknown>;
     clearQueue?: () => Promise<unknown>;
+    addToQueue?: (tracks: Array<{ uri: string }>) => Promise<unknown>;
   } | undefined {
     return (Spicetify.Platform as unknown as {
       PlayerAPI?: {
@@ -770,6 +786,7 @@
           opts: unknown,
         ) => Promise<unknown>;
         clearQueue?: () => Promise<unknown>;
+        addToQueue?: (tracks: Array<{ uri: string }>) => Promise<unknown>;
       };
     })?.PlayerAPI;
   }
@@ -1150,8 +1167,10 @@
         const album = t.album ? linkHtml(t.albumUri, t.album) : "";
         const extra = t.subExtra ? escapeHtml(t.subExtra) : "";
         const sub = [artist, album, extra].filter(Boolean).join(" · ");
+        const aAttr = t.artistUri ? ` data-artist-uri="${escapeHtml(t.artistUri)}"` : "";
+        const alAttr = t.albumUri ? ` data-album-uri="${escapeHtml(t.albumUri)}"` : "";
         return `
-        <div class="crp-list-row" data-idx="${i}" data-uri="${escapeHtml(t.uri)}">
+        <div class="crp-list-row" data-idx="${i}" data-uri="${escapeHtml(t.uri)}"${aAttr}${alAttr}>
           <div class="crp-list-art" style="background-image: url('${t.art}');"></div>
           <div class="crp-list-info">
             ${linkHtml(t.uri, t.name, "crp-list-name")}
@@ -1172,6 +1191,17 @@
       const row = target.closest<HTMLElement>(".crp-list-row");
       const uri = row?.dataset.uri;
       if (uri) Spicetify.Player.playUri(uri);
+    });
+    container.addEventListener("contextmenu", (e) => {
+      const row = (e.target as HTMLElement).closest<HTMLElement>(".crp-list-row");
+      const uri = row?.dataset.uri;
+      if (!row || !uri) return;
+      e.preventDefault();
+      menuForRowEvent(e, {
+        uri,
+        artistUri: row.dataset.artistUri,
+        albumUri: row.dataset.albumUri,
+      }).then((items) => showContextMenu(items, e.clientX, e.clientY));
     });
   }
 
@@ -1348,8 +1378,10 @@
         const trackLine = [track, artist].filter(Boolean).join(" · ");
         const meta = f.isPlaying ? "listening now" : escapeHtml(timeAgo(f.timestamp));
         const contextLine = context ? `${meta} · ${context}` : meta;
+        const aAttr = f.artistUri ? ` data-artist-uri="${escapeHtml(f.artistUri)}"` : "";
+        const alAttr = f.albumUri ? ` data-album-uri="${escapeHtml(f.albumUri)}"` : "";
         return `
-        <div class="crp-friend-row" data-idx="${i}" data-uri="${escapeHtml(f.trackUri)}">
+        <div class="crp-friend-row" data-idx="${i}" data-uri="${escapeHtml(f.trackUri)}"${aAttr}${alAttr}>
           <div class="crp-friend-avatar"${f.avatarUrl ? ` style="background-image: url('${f.avatarUrl}');"` : ""}>
             ${f.isPlaying ? '<span class="crp-friend-dot"></span>' : ""}
           </div>
@@ -1372,6 +1404,17 @@
       const uri = row?.dataset.uri;
       if (uri) Spicetify.Player.playUri(uri);
     });
+    container.addEventListener("contextmenu", (e) => {
+      const row = (e.target as HTMLElement).closest<HTMLElement>(".crp-friend-row");
+      const uri = row?.dataset.uri;
+      if (!row || !uri) return;
+      e.preventDefault();
+      menuForRowEvent(e, {
+        uri,
+        artistUri: row.dataset.artistUri,
+        albumUri: row.dataset.albumUri,
+      }).then((items) => showContextMenu(items, e.clientX, e.clientY));
+    });
   }
 
   let lastFriendsKey = "";
@@ -1383,6 +1426,228 @@
     if (!force && key === lastFriendsKey) return;
     lastFriendsKey = key;
     renderFriends(list);
+  }
+
+  // ==================== Context menu ====================
+
+  // Lightweight, vanilla popover styled to match Spotify (Spice CSS vars).
+  // Spicetify's ReactComponent.RightClickMenu is meant to *wrap* an element
+  // rendered by React; we render plain DOM strings, so we build our own
+  // menu and call the same Spicetify APIs (Player / PlayerAPI / LibraryAPI /
+  // History) the native menu would. Same actions, no React-portal gymnastics.
+
+  interface CMItem { label: string; onClick: () => void; danger?: boolean; }
+  interface CMSep { separator: true; }
+  type CMEntry = CMItem | CMSep;
+
+  let cmEl: HTMLElement | null = null;
+
+  function closeContextMenu(): void {
+    if (cmEl) {
+      cmEl.remove();
+      cmEl = null;
+    }
+    document.removeEventListener("mousedown", onCmDocMousedown, true);
+    document.removeEventListener("keydown", onCmKeydown, true);
+    window.removeEventListener("blur", closeContextMenu);
+    window.removeEventListener("resize", closeContextMenu);
+  }
+
+  function onCmDocMousedown(e: MouseEvent): void {
+    if (cmEl && !cmEl.contains(e.target as Node)) closeContextMenu();
+  }
+
+  function onCmKeydown(e: KeyboardEvent): void {
+    if (e.key === "Escape") closeContextMenu();
+  }
+
+  function showContextMenu(entries: CMEntry[], x: number, y: number): void {
+    closeContextMenu();
+    if (entries.length === 0) return;
+    const menu = document.createElement("div");
+    menu.className = "crp-ctxmenu";
+    menu.innerHTML = entries
+      .map((e) => {
+        if ("separator" in e) return '<div class="crp-ctxmenu-sep"></div>';
+        const cls = "crp-ctxmenu-item" + (e.danger ? " crp-ctxmenu-danger" : "");
+        return `<button class="${cls}" type="button">${escapeHtml(e.label)}</button>`;
+      })
+      .join("");
+    menu.addEventListener("contextmenu", (e) => e.preventDefault());
+    document.body.appendChild(menu);
+    // Clamp inside viewport now that we know the rendered size.
+    const rect = menu.getBoundingClientRect();
+    const px = Math.max(4, Math.min(x, window.innerWidth - rect.width - 4));
+    const py = Math.max(4, Math.min(y, window.innerHeight - rect.height - 4));
+    menu.style.left = `${px}px`;
+    menu.style.top = `${py}px`;
+    const items = entries.filter((e): e is CMItem => !("separator" in e));
+    menu.querySelectorAll<HTMLElement>(".crp-ctxmenu-item").forEach((btn, i) => {
+      btn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        const entry = items[i];
+        closeContextMenu();
+        try {
+          entry?.onClick();
+        } catch {
+          // swallow — action failures shouldn't trap the menu open
+        }
+      });
+    });
+    cmEl = menu;
+    document.addEventListener("mousedown", onCmDocMousedown, true);
+    document.addEventListener("keydown", onCmKeydown, true);
+    window.addEventListener("blur", closeContextMenu);
+    window.addEventListener("resize", closeContextMenu);
+  }
+
+  function navigateUri(uri: string): void {
+    const path = uri.replace(/^spotify:/, "/").replace(/:/g, "/");
+    Spicetify.Platform.History.push(path);
+  }
+
+  function uriToWebUrl(uri: string): string {
+    const parts = uri.split(":");
+    if (parts.length < 3) return uri;
+    return `https://open.spotify.com/${parts[1]}/${parts[2]}`;
+  }
+
+  function copyText(s: string): void {
+    navigator.clipboard?.writeText(s).catch(() => {});
+  }
+
+  async function addToQueueUri(uri: string): Promise<void> {
+    const api = playerApi();
+    if (!api?.addToQueue) return;
+    try {
+      await api.addToQueue([{ uri }]);
+    } catch {
+      // best effort — refresh below picks up whatever did land
+    }
+    await refreshQueue(true);
+  }
+
+  async function toggleLikeFor(uri: string): Promise<void> {
+    if (!uri.startsWith("spotify:track:")) return;
+    const api = libraryApi();
+    if (!api) return;
+    const liked = await isLiked(uri);
+    try {
+      if (liked) await api.remove?.({ uris: [uri] });
+      else await api.add?.({ uris: [uri] });
+    } catch {
+      // swallow — next sync corrects
+    }
+    syncLikeState();
+  }
+
+  async function trackMenu(opts: {
+    uri: string;
+    artistUri?: string;
+    albumUri?: string;
+    queueIdx?: number;
+  }): Promise<CMEntry[]> {
+    const { uri, artistUri, albumUri, queueIdx } = opts;
+    const liked = await isLiked(uri);
+    const items: CMEntry[] = [
+      { label: "Play", onClick: () => Spicetify.Player.playUri(uri) },
+      { label: "Add to queue", onClick: () => addToQueueUri(uri) },
+      {
+        label: liked ? "Remove from Liked Songs" : "Save to Liked Songs",
+        onClick: () => toggleLikeFor(uri),
+      },
+    ];
+    if (typeof queueIdx === "number" && queueIdx >= 0) {
+      items.push({
+        label: "Remove from queue",
+        danger: true,
+        onClick: () => removeFromQueue(queueIdx),
+      });
+    }
+    if (albumUri || artistUri) items.push({ separator: true });
+    if (albumUri) items.push({ label: "Go to album", onClick: () => navigateUri(albumUri) });
+    if (artistUri) items.push({ label: "Go to artist", onClick: () => navigateUri(artistUri) });
+    items.push({ separator: true });
+    items.push({ label: "Copy Spotify URI", onClick: () => copyText(uri) });
+    items.push({ label: "Copy link", onClick: () => copyText(uriToWebUrl(uri)) });
+    return items;
+  }
+
+  function albumMenu(uri: string): CMEntry[] {
+    return [
+      { label: "Play album", onClick: () => Spicetify.Player.playUri(uri) },
+      { label: "Add to queue", onClick: () => addToQueueUri(uri) },
+      { separator: true },
+      { label: "Go to album", onClick: () => navigateUri(uri) },
+      { separator: true },
+      { label: "Copy Spotify URI", onClick: () => copyText(uri) },
+      { label: "Copy link", onClick: () => copyText(uriToWebUrl(uri)) },
+    ];
+  }
+
+  function artistMenu(uri: string): CMEntry[] {
+    return [
+      { label: "Play artist", onClick: () => Spicetify.Player.playUri(uri) },
+      { separator: true },
+      { label: "Go to artist", onClick: () => navigateUri(uri) },
+      { separator: true },
+      { label: "Copy Spotify URI", onClick: () => copyText(uri) },
+      { label: "Copy link", onClick: () => copyText(uriToWebUrl(uri)) },
+    ];
+  }
+
+  function hrefToUri(href: string | null | undefined): string {
+    if (!href || !href.startsWith("/")) return "";
+    const parts = href.replace(/^\//, "").split("/");
+    if (parts.length < 2) return "";
+    return `spotify:${parts[0]}:${parts[1]}`;
+  }
+
+  // Resolve which menu to show for a row right-click. If the click target
+  // is an artist/album link inside the row, surface that entity's menu
+  // instead of the track menu — matches Spotify's own "right click on the
+  // artist text inside a row" behavior.
+  async function menuForRowEvent(
+    e: MouseEvent,
+    row: { uri: string; artistUri?: string; albumUri?: string; queueIdx?: number },
+  ): Promise<CMEntry[]> {
+    const link = (e.target as HTMLElement).closest<HTMLAnchorElement>("a.crp-link");
+    if (link) {
+      const uri = hrefToUri(link.getAttribute("href"));
+      if (uri.startsWith("spotify:artist:")) return artistMenu(uri);
+      if (uri.startsWith("spotify:album:")) return albumMenu(uri);
+      if (uri.startsWith("spotify:track:")) {
+        return trackMenu({ uri, artistUri: row.artistUri, albumUri: row.albumUri, queueIdx: row.queueIdx });
+      }
+    }
+    return trackMenu(row);
+  }
+
+  function wirePlayerContextMenu(root: HTMLElement): void {
+    const playerEl = root.querySelector<HTMLElement>(".crp-player");
+    if (!playerEl) return;
+    playerEl.addEventListener("contextmenu", (e) => {
+      const target = e.target as HTMLElement;
+      // Skip controls (buttons/sliders) — only react on title/artist/album text.
+      if (target.closest("button, .crp-seek, .crp-vol-bar, .crp-cover")) return;
+      const data = Spicetify.Player.data?.item;
+      const uri = data?.uri;
+      if (!uri) return;
+      const meta = data?.metadata || {};
+      const link = target.closest<HTMLAnchorElement>(".crp-link");
+      e.preventDefault();
+      if (link?.classList.contains("crp-track-artist") && meta.artist_uri) {
+        showContextMenu(artistMenu(meta.artist_uri), e.clientX, e.clientY);
+        return;
+      }
+      if (link?.classList.contains("crp-track-album") && meta.album_uri) {
+        showContextMenu(albumMenu(meta.album_uri), e.clientX, e.clientY);
+        return;
+      }
+      trackMenu({ uri, artistUri: meta.artist_uri, albumUri: meta.album_uri }).then(
+        (items) => showContextMenu(items, e.clientX, e.clientY),
+      );
+    });
   }
 
   // ==================== Injection ====================
@@ -1402,6 +1667,7 @@
     if (queueList) wireQueueDelegation(queueList);
     if (recentList) wireSimpleListDelegation(recentList);
     if (friendsList) wireFriendsDelegation(friendsList);
+    wirePlayerContextMenu(panelEl);
     syncTrackInfo();
     syncPlayPause();
     syncShuffleRepeat();
