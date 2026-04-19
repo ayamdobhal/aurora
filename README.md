@@ -1,4 +1,4 @@
-<img width="2056" height="1329" alt="image" src="https://github.com/user-attachments/assets/ce2de364-1d56-429b-ac17-0510ba18d521" /># aurora
+# aurora
 
 A [Spicetify](https://spicetify.app) theme + extension bundle. Glassy translucent UI, dynamic color theming from album art, a custom right panel, a lyrics view with a 5-line focus, a command palette, and keyboard shortcuts.
 
