@@ -170,6 +170,33 @@ button[aria-label="Switch to art"] {
   height: 0 !important;
 }
 
+/* Explicit badge: on this build the wrapper fill and the glyph both resolve
+   to the same currentColor, so the "E" disappears into the box. Force the
+   inner glyph to black against the wrapper's tint. */
+.x-explicit-label .x-explicit-icon {
+  color: #000 !important;
+}
+
+/* Primary play button ("▶" circle on playlists/albums/artist): the accent
+   fill and the inner glyph both resolve to the same accent tone on this
+   build, leaving the triangle invisible. Black against the bright-accent
+   fill reads across every artist-derived accent. */
+.main-playButton-PlayButton button .e-10180-icon,
+.main-playButton-PlayButton button .e-10180-icon path,
+button[data-encore-id="buttonPrimary"] .e-10180-icon,
+button[data-encore-id="buttonPrimary"] .e-10180-icon path {
+  color: #000 !important;
+  fill: #000 !important;
+}
+
+/* Selected filter chip ("All" / genre pills): encore-inverted-light-set
+   resolves the label to the same tone as the filled pill, so the text
+   disappears. Force black for legibility on the selected state. */
+.e-10180-legacy-chip--selected .e-10180-legacy-chip__inner--selected,
+.e-10180-legacy-chip--selected .e-10180-legacy-chip__inner {
+  color: #000 !important;
+}
+
 /* Playlist page content wrapper — drop the dark fill so our blurred album
    art bg shows through behind the track list. */
 .playlist-playlist-playlistContent {
@@ -260,6 +287,8 @@ button[aria-label="Go forward"],
 [data-testid="top-bar-forward-button"],
 button[aria-label="What's New"],
 .main-topBar-buddyFeed,
+button.custom-navlink[aria-label="Marketplace"],
+button.main-globalNav-navLink[aria-label="Marketplace"],
 [data-lyrics-btn="1"] {
   background: rgba(0, 0, 0, 0.4) !important;
   backdrop-filter: blur(8px) !important;
@@ -801,9 +830,13 @@ body.playback-paused .vinyl-disc {
 
 .crp-player {
   display: grid;
-  grid-template-rows: auto 1fr auto auto auto auto;
+  /* minmax(0, 1fr) on the cover row is load-bearing: without the explicit
+     0 min, grid falls back to min-content and the row grows to fit the
+     cover's intrinsic size, overflowing the panel. */
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto auto;
   gap: 0.6rem;
   height: 100%;
+  min-width: 0;
   min-height: 0;
   align-content: stretch;
 }
@@ -837,26 +870,31 @@ body.playback-paused .vinyl-disc {
   font-weight: 500;
 }
 
-.crp-cover {
-  /* Largest square that fits the grid cell. aspect-ratio drives the shape;
-     height: 100% + width: auto lets the browser compute width from height,
-     and max-width: 100% clamps if the cell is narrower than tall (the
-     ratio is preserved as the clamp cascades). justify-self / align-self
-     must NOT be stretch here, or they override aspect-ratio and revert
-     us to a rectangular cover cropped by background-size: cover. */
-  aspect-ratio: 1;
+/* Wrap fills the grid cell entirely and acts as a container-query size
+   context. The art inside uses 100cqmin (min of the wrap's width/height)
+   so it's always a perfect square equal to the smaller cell dimension —
+   no browser-dependent `aspect-ratio + max-height` re-derive needed. */
+.crp-cover-wrap {
+  container-type: size;
+  width: 100%;
   height: 100%;
-  width: auto;
-  max-width: 100%;
-  max-height: 100%;
+  min-width: 0;
   min-height: 0;
-  margin: 0 auto;
+  place-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.crp-cover {
+  width: 100cqmin;
+  height: 100cqmin;
+  aspect-ratio: 1 / 1;
   background-size: cover;
   background-position: center;
   background-color: rgba(255, 255, 255, 0.05);
   border-radius: 8px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
-  place-self: center;
 }
 
 .crp-track-info {
@@ -873,14 +911,22 @@ body.playback-paused .vinyl-disc {
   text-align: center;
 }
 
-.crp-btn.crp-like {
+.crp-btn.crp-like,
+.crp-btn.crp-miniplayer {
   position: absolute;
   top: 50%;
-  right: 0;
   width: 28px;
   height: 28px;
   padding: 6px;
   transform: translateY(-50%);
+}
+
+.crp-btn.crp-like {
+  right: 0;
+}
+
+.crp-btn.crp-miniplayer {
+  left: 0;
 }
 
 .crp-btn.crp-like.active {
@@ -942,13 +988,12 @@ a.crp-link:hover {
 .crp-vol-bar {
   position: relative;
   height: 4px;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.12);
   border-radius: 2px;
   cursor: pointer;
-}
-
-.crp-vol-bar {
-  background: rgba(255, 255, 255, 0.12);
+  /* Recessed "skeleton" track so the unfilled portion reads as a groove
+     the accent fill sits inside of, rather than a flat bar. Shared between
+     seek and volume sliders for visual consistency. */
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.08),
     inset 0 1px 3px rgba(0, 0, 0, 0.45);
@@ -1065,6 +1110,7 @@ a.crp-link:hover {
 .crp-tabs {
   display: grid;
   grid-template-rows: auto 1fr;
+  min-width: 0;
   min-height: 0;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   padding-top: 1rem;
@@ -1307,6 +1353,63 @@ a.crp-link:hover {
 
 .crp-row-btn[data-action="remove"]:hover {
   color: #ff6b6b;
+}
+
+/* ==================== Devices rows ==================== */
+
+/* Device row reuses .crp-list-row layout (flex + gap) but swaps the art
+   thumbnail for a type-glyph icon and adds an "active playback"
+   indicator dot on the right. */
+
+.crp-device-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 56px;
+}
+
+.crp-device-icon {
+  width: 36px;
+  height: 36px;
+  padding: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.75);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.crp-device-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.crp-device-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: transparent;
+  flex-shrink: 0;
+  transition: background 120ms ease, box-shadow 120ms ease;
+}
+
+.crp-device-active {
+  background: rgba(var(--rgb-lyrics-accent, 30, 215, 96), 0.12);
+}
+
+.crp-device-active .crp-device-icon {
+  color: var(--lyrics-accent, #1ed760);
+  background: rgba(var(--rgb-lyrics-accent, 30, 215, 96), 0.18);
+}
+
+.crp-device-active .crp-list-name {
+  color: var(--lyrics-accent, #1ed760);
+}
+
+.crp-device-active .crp-device-indicator {
+  background: var(--lyrics-accent, #1ed760);
+  box-shadow: 0 0 8px rgba(var(--rgb-lyrics-accent, 30, 215, 96), 0.6);
 }
 
 /* ==================== Friends rows ==================== */
@@ -1661,4 +1764,446 @@ a.crp-link:hover {
   height: 1px;
   margin: 4px 8px;
   background: rgba(255, 255, 255, 0.1);
+}
+
+/* ==================== Miniplayer (Document PiP) ==================== */
+
+/* The miniplayer renders into a separate Picture-in-Picture window that
+   inherits these styles via cloned <link>/<style> tags. The PIP body gets
+   `mp-pip-body` so we can anchor the full-viewport layout there without
+   competing with our main-window styles. */
+
+.mp-pip-body {
+  background: rgba(20, 20, 20, 0.92) !important;
+  color: #fff;
+  font-family: var(--font-family, "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif);
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+#mini-player.mini-player {
+  /* Flex column, not grid, so the compact/panel pair can share space
+     evenly when both visible AND have compact fill 100% when the panel
+     is collapsed — grid-template-rows can't do both without a class flip.
+     container-type: size is how descendants (.mp-compact) decide whether
+     to stack art-above-content (portrait) or art-left-of-content
+     (landscape) based on the window's current aspect ratio. */
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  container-type: size;
+  container-name: mini-player;
+}
+
+/* Close button — top-right corner of the PIP window. documentPictureInPicture
+   windows in Electron don't always render OS window chrome, so Spotify's own
+   miniplayer ships its own X too. */
+.mp-close {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  z-index: 2;
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  color: rgba(255, 255, 255, 0.8);
+  width: 22px;
+  height: 22px;
+  padding: 5px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.mp-close svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.mp-close:hover {
+  background: #e81123;
+  color: #fff;
+}
+
+/* Chevron toggle — bottom-right of the compact section (inside .mp-compact
+   so it sits at the bottom of the player panel, not the whole window). */
+.mp-toggle-panel {
+  position: absolute;
+  bottom: 0.4rem;
+  right: 0.4rem;
+  z-index: 2;
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  color: rgba(255, 255, 255, 0.8);
+  width: 24px;
+  height: 24px;
+  padding: 5px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.mp-toggle-panel svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.mp-toggle-panel:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+/* Compact — default layout is vertical (art on top, content stack below).
+   Orientation flips to horizontal via the @container rule further down
+   whenever the mini-player window's aspect is landscape-ish. The
+   expanded/collapsed classes do NOT drive this choice; they only toggle
+   the tabs panel's visibility. */
+.mp-compact {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  padding: 0.75rem 0.75rem 2rem;
+}
+
+/* The right-side stack: info / seek / controls. Lives below the art
+   when collapsed, to the right of it when expanded. */
+.mp-compact-right {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  justify-content: center;
+}
+
+/* LANDSCAPE window: flip compact to a row — art on the left, content on
+   the right. Column 1 is capped at 45% of compact width; the art wrap
+   fills that cell and its internal 100cqmin formula keeps it a perfect
+   square regardless of the resulting cell shape. Applies to both
+   expanded and collapsed panel states. */
+@container mini-player (min-aspect-ratio: 1 / 1) {
+  .mp-compact {
+    grid-template-rows: 1fr;
+    grid-template-columns: minmax(0, 45%) minmax(0, 1fr);
+    gap: 0.75rem;
+    align-items: stretch;
+  }
+}
+
+/* Art wrap — size-container filling its grid cell. In collapsed the cell
+   is the `minmax(0, 1fr)` row; in expanded it's the `minmax(0, 45%)`
+   column. Either way 100cqmin inside gives a perfect square = smaller
+   cell dimension. */
+.mp-art-wrap {
+  container-type: size;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  place-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mp-art {
+  width: 100cqmin;
+  height: 100cqmin;
+  aspect-ratio: 1 / 1;
+  background-size: cover;
+  background-position: center;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+.mp-info {
+  min-width: 0;
+  text-align: center;
+}
+
+.mp-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mp-artist {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 0.15rem;
+}
+
+.mp-seek {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.68rem;
+  color: rgba(255, 255, 255, 0.55);
+  font-variant-numeric: tabular-nums;
+}
+
+.mp-seek-bar {
+  position: relative;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+  cursor: pointer;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+
+.mp-seek-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  background: var(--lyrics-accent, #fff);
+  border-radius: 2px;
+}
+
+.mp-seek-thumb {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--lyrics-accent, #fff);
+  transform: translate(-50%, -50%);
+  left: 0;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  pointer-events: none;
+}
+
+.mp-seek-bar:hover .mp-seek-thumb {
+  opacity: 1;
+}
+
+.mp-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mp-btn {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.75);
+  width: 30px;
+  height: 30px;
+  padding: 6px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.mp-btn svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.mp-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.mp-btn.mp-primary {
+  width: 38px;
+  height: 38px;
+  padding: 10px;
+  background: #fff;
+  color: #000;
+}
+
+.mp-btn.mp-primary:hover {
+  background: #fff;
+  color: #000;
+  transform: scale(1.05);
+}
+
+/* Lyrics / Queue panel — bottom half when expanded, hidden when collapsed.
+   flex:1 1 0 shares space 50/50 with compact; switching to display:none
+   hands all the space to compact. */
+.mp-panel {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.mini-player.collapsed .mp-panel {
+  display: none;
+}
+
+.mp-tab-bar {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem 0.25rem;
+}
+
+.mp-tab {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  padding: 0.3rem 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-family: inherit;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  cursor: pointer;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease;
+}
+
+.mp-tab:hover {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.mp-tab.active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.mp-tab-content {
+  position: relative;
+  min-height: 0;
+}
+
+.mp-tab-pane {
+  position: absolute;
+  inset: 0;
+  padding: 0.5rem 0.75rem 0.75rem;
+  overflow-y: auto;
+  display: none;
+  scrollbar-width: none;
+}
+
+.mp-tab-pane::-webkit-scrollbar {
+  display: none;
+}
+
+.mp-tab-pane.active {
+  display: block;
+}
+
+.mp-empty {
+  padding: 1.5rem 0.5rem;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.85rem;
+}
+
+.mp-lyrics-synced {
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.mp-line {
+  padding: 0.25rem 0;
+  color: rgba(255, 255, 255, 0.5);
+  transition:
+    color 220ms ease,
+    font-weight 220ms ease;
+}
+
+.mp-line.past {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.mp-line.active {
+  color: #fff;
+  font-weight: 700;
+}
+
+.mp-lyrics-unsynced {
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.mp-line-plain {
+  padding: 0.1rem 0;
+}
+
+.mp-queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.mp-queue-row {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.35rem;
+  border-radius: 6px;
+}
+
+.mp-queue-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.mp-queue-art {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05) center / cover no-repeat;
+}
+
+.mp-queue-info {
+  min-width: 0;
+}
+
+.mp-queue-name {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mp-queue-sub {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.55);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 0.1rem;
 }

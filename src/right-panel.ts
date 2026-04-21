@@ -14,7 +14,7 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
     console.log("[crp-recent]", ...args);
   };
 
-  type TabId = "queue" | "recent" | "friends";
+  type TabId = "queue" | "recent" | "friends" | "devices";
 
   // Spotify's own icon glyphs live on Spicetify.SVGIcons as inner SVG content.
   // Wrap in a <svg> and use as innerHTML. Fallbacks in FALLBACK_ICONS cover
@@ -43,6 +43,16 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
       '<path d="M15.724 4.22A4.313 4.313 0 0 0 12.192.814a4.269 4.269 0 0 0-3.622 1.13.837.837 0 0 1-1.14 0 4.272 4.272 0 0 0-6.21 5.855l5.916 7.05a1.128 1.128 0 0 0 1.727 0l5.916-7.05a4.228 4.228 0 0 0 .945-3.577z"/>',
     x:
       '<path d="M2.47 2.47a.75.75 0 0 1 1.06 0L8 6.94l4.47-4.47a.75.75 0 1 1 1.06 1.06L9.06 8l4.47 4.47a.75.75 0 1 1-1.06 1.06L8 9.06l-4.47 4.47a.75.75 0 0 1-1.06-1.06L6.94 8 2.47 3.53a.75.75 0 0 1 0-1.06z"/>',
+    "picture-in-picture":
+      '<path d="M2 2h12a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.5 1.5v9h11v-9h-11zM8 7.5h5v4H8v-4z"/>',
+    computer:
+      '<path d="M1.5 2.75a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 .75.75v8.5a.75.75 0 0 1-.75.75H9v1.5h2.25a.75.75 0 0 1 0 1.5h-6.5a.75.75 0 0 1 0-1.5H7v-1.5H2.25a.75.75 0 0 1-.75-.75v-8.5zM3 3.5v7h10v-7H3z"/>',
+    smartphone:
+      '<path d="M4 1.5a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-13zm1.5.5v11h5V2h-5zm2 12a.5.5 0 1 1 1 0 .5.5 0 0 1-1 0z"/>',
+    speaker:
+      '<path d="M3 1.5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-13zm1.5.5v11h7V2h-7zM8 4a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm0 4.5a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/>',
+    device:
+      '<path d="M1 4.75A.75.75 0 0 1 1.75 4h12.5a.75.75 0 0 1 .75.75v6.5a.75.75 0 0 1-.75.75H1.75a.75.75 0 0 1-.75-.75v-6.5zm1.5.75v5h11v-5h-11zM0 13.25a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H.75a.75.75 0 0 1-.75-.75z"/>',
   };
 
   function icon(name: string): string {
@@ -88,13 +98,14 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
     el.innerHTML = `
       <div class="crp-player">
         <a class="crp-context" href="#"><span class="crp-context-label">Playing from</span> <span class="crp-context-name"></span></a>
-        <div class="crp-cover"></div>
+        <div class="crp-cover-wrap"><div class="crp-cover"></div></div>
         <div class="crp-track-info">
           <div class="crp-track-text">
             <a class="crp-track-name crp-link"></a>
             <a class="crp-track-artist crp-link"></a>
             <a class="crp-track-album crp-link"></a>
           </div>
+          <button class="crp-btn crp-miniplayer" title="Open miniplayer">${icon("picture-in-picture")}</button>
           <button class="crp-btn crp-like" title="Save to Liked Songs">${icon("heart")}</button>
         </div>
         <div class="crp-seek">
@@ -120,12 +131,14 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
           <button class="crp-tab active" data-tab="queue">Queue</button>
           <button class="crp-tab" data-tab="recent">Recent</button>
           <button class="crp-tab" data-tab="friends">Friends</button>
+          <button class="crp-tab" data-tab="devices">Devices</button>
           <button class="crp-tab-action crp-clear-queue" title="Clear queue">${icon("x")}<span>Clear queue</span></button>
         </div>
         <div class="crp-tab-content">
           <div class="crp-tab-pane active" data-pane="queue"><div class="crp-list crp-queue-list"></div></div>
           <div class="crp-tab-pane" data-pane="recent"><div class="crp-list crp-recent-list"></div></div>
           <div class="crp-tab-pane" data-pane="friends"><div class="crp-list crp-friends-list"></div></div>
+          <div class="crp-tab-pane" data-pane="devices"><div class="crp-list crp-devices-list"></div></div>
         </div>
       </div>
     `;
@@ -188,6 +201,11 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
     root
       .querySelector(".crp-like")
       ?.addEventListener("click", toggleLike);
+    root
+      .querySelector(".crp-miniplayer")
+      ?.addEventListener("click", () => {
+        document.dispatchEvent(new CustomEvent("toggle-miniplayer"));
+      });
 
     const seekBar = root.querySelector<HTMLElement>(".crp-seek-bar");
     if (seekBar) {
@@ -255,7 +273,12 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
       ?.addEventListener("click", clearQueue);
   }
 
-  const TAB_ORDER: Record<TabId, number> = { queue: 0, recent: 1, friends: 2 };
+  const TAB_ORDER: Record<TabId, number> = {
+    queue: 0,
+    recent: 1,
+    friends: 2,
+    devices: 3,
+  };
   let lastTabIdx = 0;
 
   function setActiveTab(id: TabId): void {
@@ -288,6 +311,7 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
     // event, so it still does a background re-fetch on switch.
     if (id === "recent") renderRecentList();
     else if (id === "friends") refreshFriends();
+    else if (id === "devices") refreshDevices();
   }
 
   // ==================== Sync from Player state ====================
@@ -1583,6 +1607,212 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
     renderFriends(list);
   }
 
+  // ==================== Devices tab ====================
+
+  // Spotify Connect devices. ConnectAPI / ConnectAggregatorAPI vary by
+  // build: older versions expose `getDevices()`, newer ones expose
+  // `getState()` returning a { devices[] } shape, and some builds require
+  // subscribing to a state emitter instead. Probe defensively (same
+  // pattern as friends) and cache the winning method signature.
+
+  interface Device {
+    id: string;
+    name: string;
+    type: string; // "computer" | "smartphone" | "speaker" | etc (normalized lowercase)
+    isActive: boolean;
+    isLocal: boolean;
+  }
+
+  function normalizeDevice(raw: unknown): Device | null {
+    if (!raw || typeof raw !== "object") return null;
+    const d = raw as Record<string, unknown>;
+    const id = (d.identifier as string) || (d.id as string) || "";
+    const name = (d.name as string) || "";
+    if (!id || !name) return null;
+    const rawType = (
+      (d.type as string) ||
+      (d.deviceType as string) ||
+      (d.category as string) ||
+      "device"
+    ).toString().toLowerCase();
+    let type: string;
+    if (/phone|mobile/.test(rawType)) type = "smartphone";
+    else if (/computer|laptop|desktop/.test(rawType)) type = "computer";
+    else if (/speaker|audio|av|stereo|sonos|chromecast|cast/.test(rawType))
+      type = "speaker";
+    else type = "device";
+    return {
+      id,
+      name,
+      type,
+      isActive: !!(d.isActive ?? d.is_active),
+      isLocal: !!(d.isLocalDevice ?? d.isLocal ?? d.is_local),
+    };
+  }
+
+  function pickDeviceArray(res: unknown): unknown[] | null {
+    if (!res) return null;
+    if (Array.isArray(res)) return res;
+    const r = res as Record<string, unknown>;
+    if (Array.isArray(r.devices)) return r.devices;
+    if (Array.isArray(r.availableDevices)) return r.availableDevices;
+    const state = r.state as Record<string, unknown> | undefined;
+    if (state && Array.isArray(state.devices)) return state.devices;
+    return null;
+  }
+
+  let devicesWinner: {
+    label: string;
+    fn: () => Promise<unknown> | undefined;
+  } | null = null;
+
+  async function fetchDevices(): Promise<Device[]> {
+    const apiNames = ["ConnectAggregatorAPI", "ConnectAPI", "RemoteDeviceAPI"];
+    const methods = [
+      "getDevices",
+      "getAvailableDevices",
+      "getState",
+      "getCurrentState",
+      "getDeviceState",
+      "fetch",
+    ];
+    const attempts: Array<[string, () => Promise<unknown> | undefined]> = [];
+    for (const n of apiNames) {
+      const api = apiOf(n);
+      if (!api) continue;
+      for (const m of methods) {
+        if (typeof api[m] === "function") {
+          attempts.push([`${n}.${m}()`, () => api[m]?.()]);
+        }
+      }
+    }
+
+    let raw: unknown = null;
+    if (devicesWinner) {
+      try {
+        raw = await tryOne(devicesWinner.fn);
+      } catch {
+        devicesWinner = null;
+      }
+    }
+    if (raw == null) {
+      const hit = await probeAttempts(attempts);
+      if (!hit) return [];
+      devicesWinner = { label: hit.hit, fn: hit.fn };
+      raw = hit.raw;
+    }
+
+    const arr = pickDeviceArray(raw);
+    if (!arr) return [];
+    const out: Device[] = [];
+    for (const item of arr) {
+      const d = normalizeDevice(item);
+      if (d) out.push(d);
+    }
+    return out;
+  }
+
+  async function transferPlayback(deviceId: string): Promise<void> {
+    // ConnectAPI has the transfer methods on most builds; a couple of
+    // older builds expose the same via ConnectAggregatorAPI. Try both.
+    const candidates: Array<[string, string]> = [
+      ["ConnectAPI", "transferPlayback"],
+      ["ConnectAPI", "transfer"],
+      ["ConnectAggregatorAPI", "transferPlayback"],
+      ["ConnectAggregatorAPI", "transfer"],
+      ["RemoteDeviceAPI", "transfer"],
+    ];
+    for (const [apiName, method] of candidates) {
+      const api = apiOf(apiName);
+      const fn = api?.[method];
+      if (typeof fn !== "function") continue;
+      try {
+        await (fn as (...a: unknown[]) => Promise<unknown>).call(api, deviceId);
+        return;
+      } catch {
+        // try next candidate
+      }
+    }
+  }
+
+  function deviceIconName(type: string): string {
+    if (type === "smartphone") return "smartphone";
+    if (type === "computer") return "computer";
+    if (type === "speaker") return "speaker";
+    return "device";
+  }
+
+  function renderDeviceRow(d: Device): string {
+    const sub = [
+      d.type === "smartphone"
+        ? "Phone"
+        : d.type === "computer"
+          ? "Computer"
+          : d.type === "speaker"
+            ? "Speaker"
+            : "Device",
+      d.isLocal ? "This device" : null,
+      d.isActive ? "Playing" : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    const activeClass = d.isActive ? " crp-device-active" : "";
+    return `
+      <div class="crp-list-row crp-device-row${activeClass}" data-device-id="${escapeHtml(d.id)}">
+        <div class="crp-device-icon">${icon(deviceIconName(d.type))}</div>
+        <div class="crp-list-info">
+          <span class="crp-list-name">${escapeHtml(d.name)}</span>
+          <span class="crp-list-sub">${escapeHtml(sub)}</span>
+        </div>
+        <div class="crp-device-indicator" aria-hidden="true"></div>
+      </div>`;
+  }
+
+  function renderDevices(list: Device[]): void {
+    if (!panelEl) return;
+    const container = panelEl.querySelector<HTMLElement>(".crp-devices-list");
+    if (!container) return;
+    if (list.length === 0) {
+      container.innerHTML = '<div class="crp-empty">No devices available</div>';
+      return;
+    }
+    // Active device first, then local, then the rest alphabetical. Mirrors
+    // Spotify's own picker order so active playback is always at the top.
+    const sorted = [...list].sort((a, b) => {
+      if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
+      if (a.isLocal !== b.isLocal) return a.isLocal ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+    container.innerHTML = sorted.map(renderDeviceRow).join("");
+  }
+
+  function wireDevicesDelegation(container: HTMLElement): void {
+    container.addEventListener("click", (e) => {
+      const row = (e.target as HTMLElement).closest<HTMLElement>(
+        ".crp-device-row",
+      );
+      if (!row) return;
+      const id = row.dataset.deviceId;
+      if (!id) return;
+      if (row.classList.contains("crp-device-active")) return;
+      // Optimistically mark clicked row active; a refresh tick will correct.
+      container
+        .querySelectorAll<HTMLElement>(".crp-device-row")
+        .forEach((r) => r.classList.remove("crp-device-active"));
+      row.classList.add("crp-device-active");
+      void transferPlayback(id).then(() => refreshDevices(true));
+    });
+  }
+
+  let lastDevicesKey = "";
+  async function refreshDevices(force = false): Promise<void> {
+    const list = await fetchDevices();
+    const key = list.map((d) => `${d.id}:${d.isActive ? 1 : 0}`).join("|");
+    if (!force && key === lastDevicesKey) return;
+    lastDevicesKey = key;
+    renderDevices(list);
+  }
+
   // ==================== Context menu ====================
 
   // Lightweight, vanilla popover styled to match Spotify (Spice CSS vars).
@@ -1816,9 +2046,11 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
     const queueList = panelEl.querySelector<HTMLElement>(".crp-queue-list");
     const recentList = panelEl.querySelector<HTMLElement>(".crp-recent-list");
     const friendsList = panelEl.querySelector<HTMLElement>(".crp-friends-list");
+    const devicesList = panelEl.querySelector<HTMLElement>(".crp-devices-list");
     if (queueList) wireQueueDelegation(queueList);
     if (recentList) wireSimpleListDelegation(recentList);
     if (friendsList) wireFriendsDelegation(friendsList);
+    if (devicesList) wireDevicesDelegation(devicesList);
     // Recents uses infinite scroll over a 12K-item in-memory list; the
     // pane (not the inner list) is the scroll container. Listener attaches
     // here once per mount; the pane lives for the panel's lifetime.
@@ -2004,10 +2236,15 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
   startProgressLoop();
   refreshQueue();
   refreshFriends();
+  refreshDevices();
   // refreshRecent is kicked off by mount() (on initial load) and by the
   // RecentsAPI 'update' subscription (on updates) — no interval needed.
   window.setInterval(refreshQueue, 2000);
   window.setInterval(refreshFriends, 30000);
+  // Devices list changes when speakers come online/go offline or other
+  // clients start/stop playback. 5s strikes a balance — responsive enough
+  // for the "switch to my phone" flow without hammering the ConnectAPI.
+  window.setInterval(refreshDevices, 5000);
   // Re-render recents once a minute so relative timestamps ("5m ago")
   // advance on minute boundaries. No fetch — just rebuilds rows from the
   // currently-loaded recentItems.

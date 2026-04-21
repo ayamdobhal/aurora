@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.1.7 — 2026-04-21
+
+### Added
+- **Miniplayer** — floating detachable window via the Document Picture-in-Picture API, themed by our `user.css` (stylesheets cloned into the PIP document). Compact player (art, title/artist, seek, transport) plus an expandable panel with Lyrics and Queue tabs. Layout flips from portrait (art on top) to landscape (art on left) based on the PIP window's current aspect ratio. Inline close button; falls back to Spotify's native miniplayer on builds without `documentPictureInPicture`.
+- **Devices tab** — 4th tab in the right panel lists Spotify Connect devices with their type (computer / phone / speaker). Active device is highlighted with an accent dot; click any device to transfer playback. Probes `ConnectAggregatorAPI` / `ConnectAPI` / `RemoteDeviceAPI` defensively since method signatures drift across builds.
+- `Ctrl/⌘ + 4` switches to the Devices tab.
+- `Ctrl/⌘ + Shift + M` opens Marketplace (toasts when the custom app isn't installed in the Spicetify config).
+
+### Changed
+- Video mode is auto-disabled — any time Spotify enters a music-video view, the extension clicks "Switch to audio" on the next DOM mutation or song change.
+- Album art stays square in both the right-panel player and the miniplayer regardless of window size, zoom, or orientation. Switched from `aspect-ratio + max-height` (which depends on browser re-derive behavior) to a `container-type: size` wrap sized via `100cqmin`.
+- Right-panel layout no longer clips to the right at certain zoom levels — `.crp-player` has `min-width: 0` and the cover row is `minmax(0, 1fr)` instead of falling back to min-content.
+- Seek bar in the right-panel player now shares the volume slider's recessed "skeleton" track treatment.
+- Like and miniplayer buttons now align on the same horizontal row in the player (left/right of the track text).
+
+### Fixed
+- Explicit badge "E" glyph reads against its wrapper (forced black instead of wrapper-color-on-wrapper-color).
+- Primary play button icon no longer blends into the accent fill (forced black on `.e-10180-icon` inside `buttonPrimary`).
+- Selected filter chip labels (e.g. "All", genre pills) are legible — `encore-inverted-light-set` was rendering text in the pill's own fill on this build.
+- Marketplace nav link in the top bar gets the same translucent glassy treatment as the other nav buttons.
+
+### Internal
+- New `src/miniplayer.ts` — self-contained PIP window with lrclib lyrics fetch, queue rendering, state sync to `Spicetify.Player`, and lifecycle wired via `pagehide`.
+- New resolvers in `src/lib/resolvers.ts`: `getSwitchToAudioButton`, `getMiniplayerButton` — both with `data-testid` → aria-label fallback chains.
+- `Spicetify.Config.custom_apps` added to `spicetify.d.ts` for marketplace-availability checking.
+
 ## v0.1.6 — 2026-04-20
 
 ### Added

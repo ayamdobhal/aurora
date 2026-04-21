@@ -18,9 +18,10 @@ import { getSpotifyLyricsContainer } from "./lib/resolvers";
     { keys: "F1", desc: "Show this help" },
     { keys: "F2", desc: "Toggle lyrics view" },
     { keys: "Ctrl/⌘ + K", desc: "Command palette" },
-    { keys: "Ctrl/⌘ + 1 / 2 / 3", desc: "Switch right-panel tab" },
+    { keys: "Ctrl/⌘ + 1 / 2 / 3 / 4", desc: "Switch right-panel tab" },
     { keys: "Ctrl/⌘ + Shift + A", desc: "Go to artist of current track" },
     { keys: "Ctrl/⌘ + Shift + B", desc: "Go to album of current track" },
+    { keys: "Ctrl/⌘ + Shift + M", desc: "Open Marketplace" },
     { keys: "[ / ]", desc: "Nudge lyrics timing by ±50ms" },
     { keys: "Space", desc: "Play / pause (native)" },
     { keys: "Ctrl/⌘ + ← / →", desc: "Prev / next track (native)" },
@@ -144,6 +145,23 @@ import { getSpotifyLyricsContainer } from "./lib/resolvers";
     Spicetify.Platform.History.push(uriToPath(uri));
   }
 
+  // Marketplace is a Spicetify custom app — installed separately, not part
+  // of this theme. Check the installed list before navigating so we can
+  // tell the user instead of dropping them on a blank route.
+  function hasMarketplace(): boolean {
+    const apps = Spicetify?.Config?.custom_apps;
+    if (!Array.isArray(apps)) return false;
+    return apps.some((a) => a?.toLowerCase() === "marketplace");
+  }
+
+  function openMarketplace(): void {
+    if (!hasMarketplace()) {
+      showToast("Marketplace not installed");
+      return;
+    }
+    Spicetify.Platform.History.push("/marketplace");
+  }
+
   function nudgeOffset(deltaMs: number): void {
     w.__lyricsOffsetMs = (w.__lyricsOffsetMs ?? 0) + deltaMs;
     const val = w.__lyricsOffsetMs;
@@ -203,13 +221,19 @@ import { getSpotifyLyricsContainer } from "./lib/resolvers";
           jumpToAlbum();
           return;
         }
+        if (k === "m") {
+          e.preventDefault();
+          openMarketplace();
+          return;
+        }
       }
 
       if (mod && !e.shiftKey && !e.altKey) {
-        const tabForKey: Record<string, "queue" | "recent" | "friends"> = {
+        const tabForKey: Record<string, "queue" | "recent" | "friends" | "devices"> = {
           "1": "queue",
           "2": "recent",
           "3": "friends",
+          "4": "devices",
         };
         const tab = tabForKey[e.key];
         if (tab) {

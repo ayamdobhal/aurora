@@ -10,6 +10,18 @@ declare global {
     GraphQL?: SpicetifyGraphQL;
     SVGIcons?: Record<string, string>;
     Webpack?: SpicetifyWebpack;
+    Config?: SpicetifyConfig;
+  }
+
+  // Snapshot of the user's spicetify config, as read from config-xpui.ini at
+  // app start. `custom_apps` lists the custom-app names that are actually
+  // installed and wired into the left nav (e.g. "marketplace", "lyrics-plus").
+  interface SpicetifyConfig {
+    version?: string;
+    current_theme?: string;
+    color_scheme?: string;
+    extensions?: string[];
+    custom_apps?: string[];
   }
 
   // Minimal surface of Spicetify.Webpack. Shape varies across builds — treat

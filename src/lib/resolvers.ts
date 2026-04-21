@@ -314,6 +314,52 @@ export function getMainViewBanner(): HTMLElement | null {
   return null;
 }
 
+// The "Switch to audio" toggle Spotify renders while a music video is playing.
+// Only mounted in video mode, so presence of this button is itself a signal
+// that we should click it (forcing audio-only playback). Selectors drift per
+// build: testids vary, so we also match by aria-label across locales.
+export function getSwitchToAudioButton(): HTMLButtonElement | null {
+  const attempts: Array<[string, ResolverMethod]> = [
+    ['button[data-testid="audio-video-switcher-audio"]', "testid"],
+    ['button[data-testid*="switch-to-audio" i]', "testid"],
+    ['button[data-testid*="audio-switcher" i]', "testid"],
+    ['button[aria-label="Switch to audio" i]', "aria"],
+    ['button[aria-label*="switch to audio" i]', "aria"],
+  ];
+  for (const [sel, method] of attempts) {
+    const el = qs<HTMLButtonElement>(sel);
+    if (el) {
+      logResolved("getSwitchToAudioButton", method, el);
+      return el;
+    }
+  }
+  return null;
+}
+
+// Spotify's native miniplayer trigger — the button that opens the
+// always-on-top OS-level miniplayer window. Lives inside the now-playing
+// bar, which our theme hides via `display: none`, but the button is still
+// present in the DOM so a programmatic click still fires. Fallback chain
+// covers testid variants, exact aria, localized/partial aria.
+export function getMiniplayerButton(): HTMLButtonElement | null {
+  const attempts: Array<[string, ResolverMethod]> = [
+    ['button[data-testid="mini-player-button"]', "testid"],
+    ['button[data-testid*="miniplayer" i]', "testid"],
+    ['button[data-testid*="mini-player" i]', "testid"],
+    ['button[aria-label="Open Miniplayer" i]', "aria"],
+    ['button[aria-label*="miniplayer" i]', "aria"],
+    ['button[aria-label*="mini player" i]', "aria"],
+  ];
+  for (const [sel, method] of attempts) {
+    const el = qs<HTMLButtonElement>(sel);
+    if (el) {
+      logResolved("getMiniplayerButton", method, el);
+      return el;
+    }
+  }
+  return null;
+}
+
 // The top-bar Friend Activity toggle button — we swap this in-place for our
 // lyrics toggle. Fallback chain: stable testid → exact English aria → partial
 // aria match (other locales) → case-insensitive contains.

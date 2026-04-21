@@ -2,6 +2,7 @@ import {
   getMainView,
   getMainViewBanner,
   getSpotifyLyricsContainer,
+  getSwitchToAudioButton,
   maintainInjection,
   onSubtreeMutation,
 } from "./lib/resolvers";
@@ -18,6 +19,17 @@ import {
 
   Spicetify.Player.addEventListener("onplaypause", syncPlaybackState);
   syncPlaybackState();
+
+  // Force audio-only playback. Music videos for some tracks mount a video
+  // player and a "Switch to audio" toggle; presence of that toggle is itself
+  // the video-mode signal, so we just find and click it. The body observer
+  // below covers mid-session flips; songchange covers the case where a new
+  // track auto-enters video mode before the DOM has settled.
+  function forceAudioMode(): void {
+    getSwitchToAudioButton()?.click();
+  }
+  forceAudioMode();
+  Spicetify.Player.addEventListener("songchange", forceAudioMode);
 
   // Keep #lyrics-slot mounted inside the main view. React re-renders can
   // wipe our subtree at any time; maintainInjection re-mounts on the next
@@ -65,6 +77,11 @@ import {
     );
   }
   updateLyricsRoute();
-  onSubtreeMutation(document.body, updateLyricsRoute);
+  // Single body-subtree observer drives both the lyrics-route class and the
+  // video-mode watchdog — one rAF-throttled pass per frame instead of two.
+  onSubtreeMutation(document.body, () => {
+    updateLyricsRoute();
+    forceAudioMode();
+  });
   Spicetify.Platform.History.listen?.(updateLyricsRoute);
 })();
