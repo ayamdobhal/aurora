@@ -734,8 +734,7 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
       if (target.closest(".crp-drag-handle")) return;
       if (target.closest("a.crp-link")) return;
       const idx = parseInt(row.dataset.idx ?? "-1", 10);
-      const t = cachedQueue[idx];
-      if (t) Spicetify.Player.playUri(t.uri);
+      if (idx >= 0) void skipToQueueItem(idx);
     });
 
     container.addEventListener("dragstart", (e) => {
@@ -807,7 +806,7 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
     });
   }
 
-  function playerApi(): {
+  interface PlayerAPIShape {
     removeFromQueue?: (tracks: unknown[]) => Promise<unknown>;
     reorderQueue?: (
       tracks: unknown[],
@@ -815,18 +814,17 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
     ) => Promise<unknown>;
     clearQueue?: () => Promise<unknown>;
     addToQueue?: (tracks: Array<{ uri: string }>) => Promise<unknown>;
-  } | undefined {
-    return (Spicetify.Platform as unknown as {
-      PlayerAPI?: {
-        removeFromQueue?: (tracks: unknown[]) => Promise<unknown>;
-        reorderQueue?: (
-          tracks: unknown[],
-          opts: unknown,
-        ) => Promise<unknown>;
-        clearQueue?: () => Promise<unknown>;
-        addToQueue?: (tracks: Array<{ uri: string }>) => Promise<unknown>;
-      };
-    })?.PlayerAPI;
+    // Skip methods — names vary across Spotify builds. All return promises
+    // and all advance playback within the current context (without reset).
+    skipToIndex?: (idx: number) => Promise<unknown>;
+    skipToNext?: (item: unknown) => Promise<unknown>;
+    skipNext?: (item: unknown) => Promise<unknown>;
+    skipToNextTrack?: (item: unknown) => Promise<unknown>;
+  }
+
+  function playerApi(): PlayerAPIShape | undefined {
+    return (Spicetify.Platform as unknown as { PlayerAPI?: PlayerAPIShape })
+      ?.PlayerAPI;
   }
 
   async function clearQueue(): Promise<void> {
@@ -845,6 +843,54 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
     } catch {
       // swallow — next refresh corrects state
     }
+  }
+
+  // Skip to a queue entry while preserving the playback context. Spotify's
+  // own queue UI does this via an item-identity call to PlayerAPI — the
+  // track is skipped to by uri/uid rather than played in isolation, so the
+  // parent album/playlist stays the active context and playback can
+  // continue past the clicked track.
+  //
+  // playUri(uri) is the last-resort fallback — it replaces the context
+  // entirely (same as searching and hitting play), which is exactly the
+  // behavior we're trying to avoid. Reached only when no PlayerAPI skip
+  // method is exposed on the host build.
+  async function skipToQueueItem(idx: number): Promise<void> {
+    const item = cachedQueue[idx];
+    if (!item) return;
+    const api = playerApi();
+    if (!api) {
+      Spicetify.Player.playUri(item.uri);
+      return;
+    }
+    const itemRef = {
+      uri: item.uri,
+      uid: item.uid,
+      provider: idx < userQueuedCount ? "queue" : "context",
+    };
+    // Identity-based methods first — they know how to skip into the
+    // existing context and consume user-queued entries correctly.
+    for (const fn of [api.skipToNextTrack, api.skipNext, api.skipToNext]) {
+      if (typeof fn !== "function") continue;
+      try {
+        await (fn as (arg: unknown) => Promise<unknown>).call(api, itemRef);
+        return;
+      } catch {
+        // try next shape
+      }
+    }
+    // Positional fallback — most builds that expose skipToIndex treat
+    // the arg as an offset into the upcoming-tracks list, matching our
+    // cachedQueue indexing.
+    if (typeof api.skipToIndex === "function") {
+      try {
+        await api.skipToIndex(idx);
+        return;
+      } catch {
+        // swallow
+      }
+    }
+    Spicetify.Player.playUri(item.uri);
   }
 
   async function removeFromQueue(idx: number): Promise<void> {

@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.1.8 — 2026-04-21
+
+### Fixed
+- Clicking a track in the Queue tab now skips to it within the current playback context (album / playlist / artist) instead of replacing the context with a single-track play. Uses `PlayerAPI.skipToNextTrack` / `skipNext` / `skipToNext` / `skipToIndex` with a defensive fallback chain; identity-based calls (`{uri, uid, provider}`) are tried first so user-queued entries are consumed correctly and context entries keep their position.
+
+### Internal
+- Bumped Release workflow action versions to Node 24 runtimes: `actions/checkout@v6`, `actions/setup-node@v6` (with `node-version: '22'`), `softprops/action-gh-release@v3`.
+
 ## v0.1.7 — 2026-04-21
 
 ### Added
