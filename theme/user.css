@@ -3,6 +3,7 @@
 :root {
   --font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --border-radius: 8px;
+  --aurora-panel-inset: 1rem;
 
   /* Populated by dynamic-theme.js */
   --image_url: url('');
@@ -821,7 +822,7 @@ body.playback-paused .vinyl-disc {
   display: grid;
   grid-template-rows: 1fr 1fr;
   color: #fff;
-  padding: 1rem;
+  padding: var(--aurora-panel-inset);
   gap: 1rem;
   overflow: hidden;
 }
@@ -2220,7 +2221,21 @@ a.crp-link:hover {
 /* Windows native frame is collapsed by window-chrome.ts; keep the regular
    Spotify navigation bar as the draggable region. F8 restores the frame. */
 html.aurora-hide-titlebar .Titlebar { display: none !important; }
-html.aurora-hide-titlebar .Root__globalNav { padding-inline: 8px !important; }
+/* Global nav extends over the outer panel gap; include that gap so its
+   buttons line up with the sidebar's inset content on both ends. */
+html.aurora-hide-titlebar .Root__globalNav {
+  padding-inline: calc(var(--panel-gap, 8px) + var(--aurora-panel-inset)) !important;
+}
+html.aurora-hide-titlebar .main-globalNav-contentRight {
+  margin-inline-end: 0 !important;
+}
+html.aurora-hide-titlebar .main-globalNav-historyButtonsWrapper {
+  margin-inline-start: 0 !important;
+  padding-inline-start: 0 !important;
+}
+html.aurora-hide-titlebar .main-globalNav-historyButtons {
+  padding-inline: 0 !important;
+}
 html.aurora-hide-titlebar > body::after { display: none !important; }
 
 /* Spotify mounts an empty 135px-wide sibling after the profile/actions on
