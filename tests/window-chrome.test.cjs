@@ -9,7 +9,7 @@ const code = buildSync({
   format: "iife",
   globalName: "Chrome",
 }).outputFiles[0].text;
-function fixture(platform, fail = false) {
+function fixture(platform, fail = false, native = undefined, hang = false) {
   const dom = new JSDOM("", { runScripts: "outside-only" }),
     w = dom.window,
     calls = [],
@@ -22,10 +22,12 @@ function fixture(platform, fail = false) {
   };
   w.clearTimeout = (id) => timers.delete(id);
   w.Spicetify = {
+    Platform: native || {},
     CosmosAsync: {
       post: async (url, body) => {
         calls.push({ url, body });
         if (fail) throw Error("Unavailable");
+        if (hang) return new Promise(() => {});
       },
     },
   };
@@ -96,6 +98,62 @@ test("resize bursts coalesce into one update", async () => {
     f.flush();
     await new Promise(setImmediate);
     assert.equal(f.calls.length, before + 1);
+  } finally {
+    f.dom.window.close();
+  }
+});
+
+test("native controls run even when Cosmos never responds; F8 restores both", async () => {
+  const heights = [],
+    buttons = [];
+  const f = fixture(
+    "Win32",
+    false,
+    {
+      ControlMessageAPI: {
+        _updateUiClient: {
+          updateTitlebarHeight: (request) => heights.push(request.height),
+          setButtonsVisibility: (request) => buttons.push(request.showButtons),
+        },
+      },
+    },
+    true,
+  );
+  try {
+    await new Promise(setImmediate);
+    assert.deepEqual(heights, [1]);
+    assert.deepEqual(buttons, [false]);
+    assert.ok(
+      f.w.document.documentElement.classList.contains("aurora-hide-titlebar"),
+    );
+    f.w.document.dispatchEvent(new f.w.KeyboardEvent("keydown", { key: "F8" }));
+    f.flush();
+    await new Promise(setImmediate);
+    assert.equal(heights.at(-1), 30);
+    assert.equal(buttons.at(-1), true);
+    assert.equal(
+      f.w.document.documentElement.classList.contains("aurora-hide-titlebar"),
+      false,
+    );
+  } finally {
+    f.dom.window.close();
+  }
+});
+test("older UpdateAPI works despite a rejected Cosmos fallback", async () => {
+  let height;
+  const f = fixture("Win32", true, {
+    UpdateAPI: {
+      _updateUiClient: {
+        updateTitlebarHeight: (value) => (height = value.height),
+      },
+    },
+  });
+  try {
+    await new Promise(setImmediate);
+    assert.equal(height, 1);
+    assert.ok(
+      f.w.document.documentElement.classList.contains("aurora-hide-titlebar"),
+    );
   } finally {
     f.dom.window.close();
   }
