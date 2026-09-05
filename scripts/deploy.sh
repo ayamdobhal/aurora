@@ -25,7 +25,7 @@ spicetify config current_theme "$THEME_NAME"
 # current config before re-adding so the list stays in sync with extensions/.
 CONFIG_FILE="$HOME/.config/spicetify/config-xpui.ini"
 if [ -f "$CONFIG_FILE" ]; then
-  current=$(grep -E "^extensions\s*=" "$CONFIG_FILE" | sed -E 's/^extensions\s*=\s*//')
+  current=$(grep -E "^extensions[[:space:]]*=" "$CONFIG_FILE" | sed -E 's/^extensions[[:space:]]*=[[:space:]]*//')
   IFS='|' read -ra CURR <<< "$current"
   for ext in "${CURR[@]}"; do
     ext="$(echo "$ext" | tr -d '[:space:]')"

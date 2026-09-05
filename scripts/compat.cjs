@@ -38,6 +38,27 @@ const fs = require("node:fs");
           patch: "src/lib/resolvers.ts",
         });
       }
+      const panel = document.querySelector("#custom-right-panel");
+      if (panel) {
+        const cover = panel
+          .querySelector(".crp-cover")
+          ?.getBoundingClientRect();
+        const info = panel
+          .querySelector(".crp-track-info")
+          ?.getBoundingClientRect();
+        checks.push({
+          name: "Aurora artwork geometry",
+          status:
+            cover &&
+            info &&
+            cover.width > 40 &&
+            cover.height > 40 &&
+            cover.bottom <= info.top + 1
+              ? "pass"
+              : "fail",
+          patch: "theme/user.css (.crp-player grid rows)",
+        });
+      }
       const sp = globalThis.Spicetify;
       if (!sp)
         checks.push({

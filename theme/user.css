@@ -826,6 +826,13 @@ body.playback-paused .vinyl-disc {
   overflow: hidden;
 }
 
+/* Explicit rows keep optional context visibility from shifting other children. */
+.crp-context { grid-row: 1; }
+.crp-track-info { grid-row: 3; }
+.crp-seek { grid-row: 4; }
+.crp-controls { grid-row: 5; }
+.crp-volume { grid-row: 6; }
+
 /* --- Player half --- */
 
 .crp-player {
@@ -875,6 +882,8 @@ body.playback-paused .vinyl-disc {
    so it's always a perfect square equal to the smaller cell dimension —
    no browser-dependent `aspect-ratio + max-height` re-derive needed. */
 .crp-cover-wrap {
+  /* Context may be hidden: retain the flexible artwork row. */
+  grid-row: 2;
   container-type: size;
   width: 100%;
   height: 100%;
