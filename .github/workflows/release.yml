@@ -19,10 +19,10 @@ jobs:
           node-version: '22'
 
       - name: Install build tools
-        run: npm install -g typescript esbuild
+        run: npm ci
 
       - name: Build extensions
-        run: bash scripts/build.sh
+        run: npm test && npm run build
 
       - name: Package
         run: |

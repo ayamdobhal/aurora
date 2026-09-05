@@ -83,7 +83,7 @@ export function walkFiberUp<T = unknown>(
 export function findModule<T = unknown>(
   predicate: (m: unknown) => boolean,
 ): T | null {
-  const wp = Spicetify?.Webpack;
+  const wp = typeof Spicetify === "undefined" ? undefined : Spicetify.Webpack;
   if (wp?.find) {
     try {
       const found = wp.find(predicate);
@@ -119,7 +119,7 @@ export function findModule<T = unknown>(
 // Spotify's own `TrackRow`, `PlayButton`, `ContextMenu` etc. without caring
 // where in the bundle they live.
 export function findModuleByProps<T = unknown>(...props: string[]): T | null {
-  const wp = Spicetify?.Webpack;
+  const wp = typeof Spicetify === "undefined" ? undefined : Spicetify.Webpack;
   if (wp?.findByProps) {
     try {
       const found = wp.findByProps(...props);
@@ -186,6 +186,7 @@ interface MaintainInjectionOptions {
 // wipe our subtree. Returns a teardown fn.
 export function maintainInjection(opts: MaintainInjectionOptions): () => void {
   let rafPending = false;
+  let stopped = false;
   const run = (): void => {
     const cur = opts.exists();
     if (cur && cur.isConnected) return;
@@ -200,11 +201,14 @@ export function maintainInjection(opts: MaintainInjectionOptions): () => void {
     rafPending = true;
     requestAnimationFrame(() => {
       rafPending = false;
-      run();
+      if (!stopped) run();
     });
   });
   obs.observe(document.body, { childList: true, subtree: true });
-  return () => obs.disconnect();
+  return () => {
+    stopped = true;
+    obs.disconnect();
+  };
 }
 
 // Invoke `cb` whenever the subtree under `root` mutates. rAF-throttled to one
@@ -216,16 +220,20 @@ export function onSubtreeMutation(
   opts: MutationObserverInit = { childList: true, subtree: true },
 ): () => void {
   let rafPending = false;
+  let stopped = false;
   const obs = new MutationObserver(() => {
     if (rafPending) return;
     rafPending = true;
     requestAnimationFrame(() => {
       rafPending = false;
-      cb();
+      if (!stopped) cb();
     });
   });
   obs.observe(root, opts);
-  return () => obs.disconnect();
+  return () => {
+    stopped = true;
+    obs.disconnect();
+  };
 }
 
 // ============================================================================

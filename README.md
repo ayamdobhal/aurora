@@ -110,3 +110,42 @@ flake.nix         Nix dev shell
 
 - Built and tested against a specific Spotify desktop build. Spotify's internal class names are hashed and change across releases; selectors may break.
 - Friend activity relies on `Spicetify.Platform.BuddyFeedAPI.presenceView.getBuddyFeed()` which isn't present on every build.
+
+## Regression checks
+
+Use Node 22. Install pinned tooling with `npm ci`, then run `npm test` and
+`npm run build`. CI runs these on pushes and pull requests, and releases also
+require them to pass. The tests exercise the production resolvers against
+synthetic DOMs: fallback anchors, hidden-sidebar placement, lyrics scoping,
+fiber cycles, webpack fallback, late mounting, reinjection and observer teardown.
+These fixtures test our behavior; they cannot discover future Spotify changes.
+
+For the installed Spotify build, launch its desktop executable with
+`--remote-debugging-port=9228 --remote-debugging-address=127.0.0.1` after fully
+quitting it, then run `npm run compat`. On macOS:
+
+```sh
+open -a Spotify --args --remote-debugging-port=9228 --remote-debugging-address=127.0.0.1
+npm run compat
+```
+
+The live probe attaches through Playwright CDP, runs the same resolvers, checks
+core Spicetify function availability and writes `reports/compat-latest.json`.
+It does not click controls, make Spotify API requests or record credentials,
+track names or page content. Keep the debugging endpoint local; quit and reopen
+Spotify normally to close it. Override the endpoint with `SPOTIFY_CDP` if needed.
+
+Exit codes: **0** required checks passed, **1** required contract missing,
+**2** probe unavailable or Spicetify not loaded. `not-observed` means a conditional
+control wasn't mounted (for example lyrics or video), not that the feature works.
+A vanilla client lacks Spicetify's DOM rewriting too: missing anchors on that
+client must not be interpreted as proven theme regressions.
+
+Run the live probe after applying Spicetify to each new Spotify version.
+This first pass does not yet verify rendered theme appearance, API response
+shapes, playback behavior, or every route; it is not a whole-app compatibility
+certification. Hosted CI cannot see your authenticated desktop installation.
+Automatic update monitoring and visual baselines are separate follow-up work.
+
+References: [Playwright CDP](https://playwright.dev/docs/api/class-browsertype#browser-type-connect-over-cdp),
+[Spicetify API wrapper](https://spicetify.app/docs/development/api-wrapper).

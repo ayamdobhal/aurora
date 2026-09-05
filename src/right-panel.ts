@@ -1,3 +1,4 @@
+import { setTextIfChanged } from "./lib/dom";
 import { getRightSidebar, maintainInjection } from "./lib/resolvers";
 
 (async function rightPanel() {
@@ -520,7 +521,7 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
     const pctStr = `${Math.round(v * 100)}%`;
     if (fill) fill.style.width = pctStr;
     if (thumb) thumb.style.left = pctStr;
-    if (pct) pct.textContent = pctStr;
+    setTextIfChanged(pct, pctStr);
   }
 
   function updateSeekUI(progressMs: number, durationMs: number): void {
@@ -532,8 +533,8 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
     const pct = durationMs > 0 ? Math.max(0, Math.min(1, progressMs / durationMs)) : 0;
     if (fill) fill.style.width = `${pct * 100}%`;
     if (thumb) thumb.style.left = `${pct * 100}%`;
-    if (el) el.textContent = fmtTime(progressMs);
-    if (tot) tot.textContent = fmtTime(durationMs);
+    setTextIfChanged(el, fmtTime(progressMs));
+    setTextIfChanged(tot, fmtTime(durationMs));
   }
 
   function getAccurateProgress(): number {

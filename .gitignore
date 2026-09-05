@@ -5,3 +5,5 @@ result
 result-*
 extensions/*.js
 /PLAN.md
+
+reports/

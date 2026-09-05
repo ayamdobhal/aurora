@@ -13,6 +13,8 @@
   type RGB = [number, number, number];
 
   const cache = new Map<string, Accent | null>();
+  const CACHE_LIMIT = 128;
+  let generation = 0;
   let debounceTimer: number | null = null;
 
   function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
@@ -65,10 +67,7 @@
   }
 
   function rgbToHex([r, g, b]: RGB): string {
-    return (
-      "#" +
-      [r, g, b].map((x) => x.toString(16).padStart(2, "0")).join("")
-    );
+    return "#" + [r, g, b].map((x) => x.toString(16).padStart(2, "0")).join("");
   }
 
   function toHttpUrl(url: string | undefined): string | null {
@@ -183,7 +182,7 @@
     const track = Spicetify.Player.data?.item;
     if (!track) return;
 
-    const uri = track.uri;
+    const requestGeneration = generation;
     const meta = track.metadata || {};
     const bgUrl = toHttpUrl(meta.image_large_url || meta.image_url);
     const extractUrl = toHttpUrl(
@@ -196,17 +195,21 @@
       `url("${bgUrl}")`,
     );
 
-    if (cache.has(uri)) {
-      applyAccent(cache.get(uri) ?? null);
+    if (cache.has(extractUrl)) {
+      applyAccent(cache.get(extractUrl) ?? null);
       return;
     }
 
     const accent = await extractAccent(extractUrl);
-    cache.set(uri, accent);
-    applyAccent(accent);
+    // Album tracks share artwork; retain only a bounded number of palettes.
+    cache.set(extractUrl, accent);
+    if (cache.size > CACHE_LIMIT) cache.delete(cache.keys().next().value!);
+    // A slower previous cover must not repaint a newer song's theme.
+    if (requestGeneration === generation) applyAccent(accent);
   }
 
   function scheduleUpdate(): void {
+    generation++;
     if (debounceTimer !== null) window.clearTimeout(debounceTimer);
     debounceTimer = window.setTimeout(updateTheme, DEBOUNCE_MS);
   }
