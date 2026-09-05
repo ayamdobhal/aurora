@@ -2216,3 +2216,9 @@ a.crp-link:hover {
   text-overflow: ellipsis;
   margin-top: 0.1rem;
 }
+
+/* Windows native frame is collapsed by window-chrome.ts; keep the regular
+   Spotify navigation bar as the draggable region. F8 restores the frame. */
+html.aurora-hide-titlebar .Titlebar { display: none !important; }
+html.aurora-hide-titlebar .Root__globalNav { padding-inline: 8px !important; }
+html.aurora-hide-titlebar > body::after { display: none !important; }

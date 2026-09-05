@@ -121,6 +121,7 @@ declare global {
   }
 
   interface SpicetifyCosmosAsync {
+    post(url: string, body?: unknown): Promise<unknown>;
     get(
       url: string,
       body?: unknown,

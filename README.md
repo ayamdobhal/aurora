@@ -23,6 +23,7 @@ A [Spicetify](https://spicetify.app) theme + extension bundle. Glassy translucen
 | --- | --- |
 | `F1` | Help |
 | `F2` | Toggle lyrics view |
+| `F8` (Windows) | Restore/hide native window title bar |
 | `Cmd/Ctrl + K` | Command palette |
 | `Cmd/Ctrl + 1/2/3` | Switch right-panel tab |
 | `Cmd/Ctrl + Shift + A` | Jump to artist of current track |
@@ -149,3 +150,13 @@ Automatic update monitoring and visual baselines are separate follow-up work.
 
 References: [Playwright CDP](https://playwright.dev/docs/api/class-browsertype#browser-type-connect-over-cdp),
 [Spicetify API wrapper](https://spicetify.app/docs/development/api-wrapper).
+
+
+On Windows, Aurora requests a compact native title bar and hides its controls.
+F8 restores the bar; Alt+F4 remains available to close the window. This uses the
+same internal container-control endpoint documented by
+[No Controls](https://github.com/ohitstom/spicetify-extensions/tree/main/noControls).
+It applies at startup and after debounced resize/fullscreen events, without a
+continuous polling loop. macOS/Linux are unchanged. If the endpoint rejects the
+request, Aurora leaves the native controls visible. Native Windows behavior
+requires verification on the installed Spotify build.

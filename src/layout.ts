@@ -1,3 +1,4 @@
+import { setupWindowsTitlebar } from "./lib/window-chrome";
 import {
   getMainView,
   getMainViewBanner,
@@ -11,6 +12,8 @@ import {
   while (!Spicetify?.Player || !Spicetify?.Platform?.History) {
     await new Promise((r) => setTimeout(r, 100));
   }
+
+  setupWindowsTitlebar();
 
   function syncPlaybackState(): void {
     const isPaused = Spicetify.Player.data?.isPaused ?? true;
