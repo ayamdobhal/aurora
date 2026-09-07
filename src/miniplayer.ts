@@ -1,3 +1,6 @@
+import { mountLyricsView } from "./lib/lyrics-view";
+import { preferences, savePreferences } from "./lib/preferences";
+import { wireSlider, syncTabs } from "./lib/accessibility";
 // Custom miniplayer powered by the Document Picture-in-Picture API.
 // `documentPictureInPicture.requestWindow(...)` returns a real, OS-level
 // detachable window that the user can drag anywhere — unlike Spotify's own
@@ -81,13 +84,12 @@ import { getMiniplayerButton } from "./lib/resolvers";
   let pipRoot: HTMLElement | null = null;
   let rafId: number | null = null;
   let seeking = false;
-  let activeTab: "lyrics" | "queue" = "lyrics";
+  let activeTab: "lyrics" | "queue" = preferences().miniTab;
   // Panel expanded state persists across PIP open/close in memory so a
   // user who prefers the compact-only view doesn't have to re-collapse
   // every time they reopen the miniplayer.
-  let panelExpanded = true;
-  let lastRenderedLyricsUri: string | null = null;
-  let lastActiveLineIdx = -1;
+  let panelExpanded = preferences().miniExpanded;
+  let lyricsView: ReturnType<typeof mountLyricsView> | null = null;
 
   function isOpen(): boolean {
     return !!pipWin && !pipWin.closed;
@@ -179,8 +181,7 @@ import { getMiniplayerButton } from "./lib/resolvers";
     seeking = false;
     pipWin = null;
     pipRoot = null;
-    lastRenderedLyricsUri = null;
-    lastActiveLineIdx = -1;
+    lyricsView?.dispose(); lyricsView = null;
   }
 
   function closePip(): void {
@@ -246,10 +247,13 @@ import { getMiniplayerButton } from "./lib/resolvers";
   function togglePanel(): void {
     if (!pipRoot) return;
     panelExpanded = !panelExpanded;
+    savePreferences({miniExpanded: panelExpanded});
+    lyricsView?.refresh();
     pipRoot.classList.toggle("expanded", panelExpanded);
     pipRoot.classList.toggle("collapsed", !panelExpanded);
     const btn = pipRoot.querySelector<HTMLElement>(".mp-toggle-panel");
     if (btn) {
+      btn.setAttribute("aria-expanded", String(panelExpanded));
       btn.innerHTML = icon(panelExpanded ? "chevron-up" : "chevron-down");
     }
     // Expanding loads the currently active tab's content if it hasn't
@@ -276,6 +280,7 @@ import { getMiniplayerButton } from "./lib/resolvers";
     el.querySelector(".mp-close")?.addEventListener("click", closePip);
 
     const seekBar = el.querySelector<HTMLElement>(".mp-seek-bar");
+    wireSlider(seekBar, "Playback position", () => Spicetify.Player.getProgress(), () => Spicetify.Player.getDuration(), n => {Spicetify.Player.seek(n); syncSeek();}, 5000);
     if (seekBar) {
       const seekFromEvent = (ev: MouseEvent): number => {
         const rect = seekBar.getBoundingClientRect();
@@ -318,6 +323,9 @@ import { getMiniplayerButton } from "./lib/resolvers";
   function setActiveTab(id: "lyrics" | "queue"): void {
     if (!pipRoot) return;
     activeTab = id;
+    savePreferences({miniTab: id});
+    syncTabs(pipRoot, "mp", id);
+    lyricsView?.refresh();
     pipRoot.querySelectorAll<HTMLElement>(".mp-tab").forEach((el) => {
       el.classList.toggle("active", el.dataset.tab === id);
     });
@@ -391,8 +399,8 @@ import { getMiniplayerButton } from "./lib/resolvers";
     if (rafId != null) return;
     const tick = (): void => {
       if (!seeking) syncSeek();
-      if (activeTab === "lyrics") highlightLyricsLine();
-      rafId = (pipWin ?? window).requestAnimationFrame(tick);
+      rafId = null;
+      if (isOpen() && !Spicetify.Player.data?.isPaused) rafId = (pipWin ?? window).requestAnimationFrame(tick);
     };
     rafId = (pipWin ?? window).requestAnimationFrame(tick);
   }
@@ -404,137 +412,11 @@ import { getMiniplayerButton } from "./lib/resolvers";
 
   // ==================== Lyrics tab ====================
 
-  type SyncedLine = { time: number; text: string };
-  type Lyrics =
-    | { type: "synced"; lines: SyncedLine[] }
-    | { type: "unsynced"; text: string }
-    | { type: "none" };
-
-  const lyricsCache = new Map<string, Lyrics>();
-
-  function parseLrc(lrc: string): SyncedLine[] {
-    const out: SyncedLine[] = [];
-    for (const raw of lrc.split("\n")) {
-      const m = raw.match(/^\[(\d+):(\d+(?:\.\d+)?)\](.*)/);
-      if (!m) continue;
-      const time = parseInt(m[1], 10) * 60 + parseFloat(m[2]);
-      const text = m[3].replace(/<[^>]+>/g, "").trim();
-      out.push({ time, text });
-    }
-    return out;
-  }
-
-  async function fetchLyrics(
-    uri: string,
-    name: string | undefined,
-    artist: string | undefined,
-    album: string | undefined,
-    durationMs: number,
-  ): Promise<Lyrics> {
-    const cached = lyricsCache.get(uri);
-    if (cached) return cached;
-    if (!name || !artist) {
-      const none: Lyrics = { type: "none" };
-      lyricsCache.set(uri, none);
-      return none;
-    }
-    const params = new URLSearchParams({
-      track_name: name,
-      artist_name: artist,
-      album_name: album || "",
-      duration: String(Math.round(durationMs / 1000)),
-    });
-    try {
-      const res = await fetch(`https://lrclib.net/api/get?${params}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.syncedLyrics) {
-          const val: Lyrics = {
-            type: "synced",
-            lines: parseLrc(data.syncedLyrics),
-          };
-          lyricsCache.set(uri, val);
-          return val;
-        }
-        if (data.plainLyrics) {
-          const val: Lyrics = { type: "unsynced", text: data.plainLyrics };
-          lyricsCache.set(uri, val);
-          return val;
-        }
-      }
-    } catch {
-      // network failure — fall through to "none"
-    }
-    const none: Lyrics = { type: "none" };
-    lyricsCache.set(uri, none);
-    return none;
-  }
-
-  async function refreshLyrics(): Promise<void> {
-    if (!pipRoot) return;
-    const pane = pipRoot.querySelector<HTMLElement>('.mp-tab-pane[data-pane="lyrics"]');
+  function refreshLyrics(): void {
+    const pane = pipRoot?.querySelector<HTMLElement>('.mp-tab-pane[data-pane="lyrics"]');
     if (!pane) return;
-    const track = Spicetify.Player.data?.item;
-    if (!track?.uri) {
-      pane.innerHTML = '<div class="mp-empty">Nothing playing</div>';
-      return;
-    }
-    if (lastRenderedLyricsUri === track.uri) return;
-    pane.innerHTML = '<div class="mp-empty">Loading lyrics…</div>';
-    const meta = track.metadata || {};
-    const name = meta.title || track.name;
-    const artist = meta.artist_name;
-    const album = meta.album_title;
-    const duration =
-      track.duration?.milliseconds || parseInt(meta.duration ?? "0", 10) || 0;
-    const lyrics = await fetchLyrics(track.uri, name, artist, album, duration);
-    if (!pipRoot?.contains(pane) || Spicetify.Player.data?.item?.uri !== track.uri) return;
-    lastRenderedLyricsUri = track.uri;
-    lastActiveLineIdx = -1;
-    if (lyrics.type === "none") {
-      pane.innerHTML = '<div class="mp-empty">Lyrics not available</div>';
-      return;
-    }
-    if (lyrics.type === "unsynced") {
-      pane.innerHTML = `<div class="mp-lyrics-unsynced">${lyrics.text
-        .split("\n")
-        .map((l) => `<div class="mp-line-plain">${escapeHtml(l)}</div>`)
-        .join("")}</div>`;
-      return;
-    }
-    pane.innerHTML = `<div class="mp-lyrics-synced">${lyrics.lines
-      .map(
-        (l, i) =>
-          `<div class="mp-line" data-idx="${i}">${escapeHtml(l.text) || "&#9834;"}</div>`,
-      )
-      .join("")}</div>`;
-  }
-
-  function highlightLyricsLine(): void {
-    if (!pipRoot) return;
-    const track = Spicetify.Player.data?.item;
-    if (!track?.uri) return;
-    const cached = lyricsCache.get(track.uri);
-    if (!cached || cached.type !== "synced") return;
-    const progressSec = getAccurateProgress() / 1000;
-    let idx = -1;
-    for (let i = 0; i < cached.lines.length; i++) {
-      if (cached.lines[i].time <= progressSec) idx = i;
-      else break;
-    }
-    if (idx === lastActiveLineIdx) return;
-    lastActiveLineIdx = idx;
-    const pane = pipRoot.querySelector<HTMLElement>('.mp-tab-pane[data-pane="lyrics"]');
-    if (!pane) return;
-    pane.querySelectorAll<HTMLElement>(".mp-line").forEach((el) => {
-      const i = parseInt(el.dataset.idx ?? "-1", 10);
-      el.classList.toggle("active", i === idx);
-      el.classList.toggle("past", i < idx);
-    });
-    pane.querySelector<HTMLElement>(".mp-line.active")?.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-    });
+    if (!lyricsView) lyricsView = mountLyricsView(pane, () => isOpen() && panelExpanded && activeTab === 'lyrics');
+    else { void lyricsView.render(); lyricsView.refresh(); }
   }
 
   // ==================== Queue tab ====================
@@ -610,8 +492,6 @@ import { getMiniplayerButton } from "./lib/resolvers";
   // ==================== Player subscriptions ====================
 
   Spicetify.Player.addEventListener("songchange", () => {
-    lastRenderedLyricsUri = null;
-    lastActiveLineIdx = -1;
     if (!isOpen()) return;
     syncTrackInfo();
     syncSeek();
@@ -620,8 +500,10 @@ import { getMiniplayerButton } from "./lib/resolvers";
   });
 
   Spicetify.Player.addEventListener("onplaypause", () => {
-    if (isOpen()) syncPlayPause();
+    if (isOpen()) { syncPlayPause(); syncSeek(); startProgressLoop(); }
   });
+
+  Spicetify.Player.addEventListener("onprogress", () => {if (isOpen() && !seeking) syncSeek();});
 
   // ==================== External toggle ====================
 

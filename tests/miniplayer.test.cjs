@@ -8,7 +8,7 @@ function setup(t) {
     f.dom.window.close();
     windows.forEach((p) => p.dom.window.close());
   });
-  f.w.fetch = async () => ({
+  f.w.fetch = async (url) => url.includes("githubusercontent") ? {ok:false,status:404} : ({
     ok: true,
     json: async () => ({ syncedLyrics: "[00:00.00]hello" }),
   });
@@ -76,7 +76,8 @@ test("PiP copies dynamic root variables and tracks changes only while open", asy
 test("late lyrics from a closed window do not suppress lyrics in a reopened window", async (t) => {
   const f = setup(t),
     requests = [];
-  f.w.fetch = () => {
+  f.w.fetch = (url) => {
+    if (url.includes("githubusercontent")) return Promise.resolve({ok:false,status:404});
     const d = deferred();
     requests.push(d);
     return d.promise;

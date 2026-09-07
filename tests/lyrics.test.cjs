@@ -81,9 +81,8 @@ test("replaced slot keeps the new progress loop after an old request completes",
   fresh.id = "lyrics-slot";
   f.w.document.body.append(fresh);
   await f.frame();
-  requests[1].resolve(ttml("Fresh"));
-  await settle();
-  requests[0].resolve(ttml("Old"));
+  assert.equal(requests.length, 1, "replacement shares the in-flight track request");
+  requests[0].resolve(ttml("Fresh"));
   await settle();
   await f.frame();
   assert.equal(fresh.querySelector(".lyric-word").textContent, "Fresh");

@@ -1,3 +1,4 @@
+import { modalFocus } from "./lib/accessibility";
 (async function commandPalette() {
   while (
     !Spicetify?.Player ||
@@ -16,6 +17,8 @@
     art: string;
   }
 
+  let releaseFocus: (() => void) | null = null;
+  let status = "";
   let paletteEl: HTMLElement | null = null;
   let inputEl: HTMLInputElement | null = null;
   let resultsEl: HTMLElement | null = null;
@@ -42,11 +45,11 @@
     paletteEl.className = "command-palette hidden";
     paletteEl.innerHTML = `
       <div class="cmd-backdrop"></div>
-      <div class="cmd-modal">
-        <input id="cmd-input" type="text"
+      <div class="cmd-modal" aria-label="Search Spotify">
+        <input id="cmd-input" type="text" role="combobox" aria-label="Search Spotify" aria-expanded="true" aria-controls="cmd-results" aria-autocomplete="list"
                placeholder="Search tracks, albums, artists, playlists…"
                autocomplete="off" spellcheck="false" />
-        <div id="cmd-results" class="cmd-results"></div>
+        <div id="cmd-results" class="cmd-results" role="listbox"></div>
       </div>
     `;
     document.body.appendChild(paletteEl);
@@ -64,8 +67,9 @@
     if (!paletteEl || !inputEl) return;
     invalidateSearch();
     paletteEl.classList.remove("hidden");
-    inputEl.value = "";
-    inputEl.focus();
+    inputEl.value = ""; status = "";
+    releaseFocus?.();
+    releaseFocus = modalFocus(paletteEl.querySelector<HTMLElement>(".cmd-modal")!, hide);
     results = [];
     selectedIdx = 0;
     renderResults();
@@ -80,6 +84,7 @@
   function hide(): void {
     invalidateSearch();
     paletteEl?.classList.add("hidden");
+    releaseFocus?.(); releaseFocus = null;
   }
 
   function toggle(): void {
@@ -92,6 +97,7 @@
     const query = (e.target as HTMLInputElement).value.trim();
     const generation = invalidateSearch();
     results = [];
+    status = query ? "Searching…" : "";
     selectedIdx = 0;
     renderResults();
     if (!query) return;
@@ -124,7 +130,7 @@
 
     const gql = Spicetify.GraphQL;
     const def = gql?.Definitions?.searchModalResults;
-    if (!gql?.Request || !def) return;
+    if (!gql?.Request || !def) {status = "Search is unavailable on this Spotify version."; renderResults(); return;}
 
     try {
       const res = await gql.Request(def, {
@@ -197,24 +203,26 @@
       queryCache.set(query, items);
       if (queryCache.size > 128) queryCache.delete(queryCache.keys().next().value!);
       if (generation !== searchGeneration) return;
+      status = items.length ? "" : "No results";
       results = items;
       selectedIdx = 0;
       renderResults();
     } catch {
-      // Leave the current query empty on failure.
+      if (generation === searchGeneration) {status = "Search failed. Change the query to retry."; renderResults();}
     }
   }
 
   function renderResults(): void {
     if (!resultsEl) return;
     if (results.length === 0) {
-      resultsEl.innerHTML = "";
+      inputEl?.removeAttribute("aria-activedescendant");
+      resultsEl.innerHTML = status ? `<div role="status" class="cmd-status">${escapeHtml(status)}</div>` : "";
       return;
     }
     resultsEl.innerHTML = results
       .map(
         (r, i) => `
-        <div class="cmd-result${i === selectedIdx ? " selected" : ""}" data-idx="${i}">
+        <div class="cmd-result${i === selectedIdx ? " selected" : ""}" data-idx="${i}" id="cmd-option-${i}" role="option" aria-selected="${i === selectedIdx}">
           <div class="cmd-result-art" style="background-image: url('${r.art}');"></div>
           <div class="cmd-result-info">
             <span class="cmd-result-name">${escapeHtml(r.name)}</span>
@@ -226,6 +234,7 @@
       )
       .join("");
 
+    inputEl?.setAttribute("aria-activedescendant", `cmd-option-${selectedIdx}`);
     resultsEl.querySelectorAll<HTMLElement>(".cmd-result").forEach((el) => {
       el.addEventListener("click", () => {
         selectedIdx = parseInt(el.dataset.idx ?? "0", 10);

@@ -1,3 +1,5 @@
+import { modalFocus } from "./lib/accessibility";
+import { trackOffset, setTrackOffset } from "./lib/preferences";
 import { getSpotifyLyricsContainer } from "./lib/resolvers";
 
 (async function shortcuts() {
@@ -8,15 +10,12 @@ import { getSpotifyLyricsContainer } from "./lib/resolvers";
   const OFFSET_STEP_MS = 50;
   const TOAST_MS = 1500;
 
-  const w = window as unknown as { __lyricsOffsetMs?: number };
-  if (typeof w.__lyricsOffsetMs !== "number") w.__lyricsOffsetMs = 0;
-
-
   // ==================== Help modal ====================
 
   const BINDINGS: Array<{ keys: string; desc: string }> = [
     { keys: "F1", desc: "Show this help" },
     { keys: "F2", desc: "Toggle lyrics view" },
+    { keys: "F3", desc: "Toggle focus mode (Esc to exit)" },
     { keys: "Ctrl/⌘ + K", desc: "Command palette" },
     { keys: "Ctrl/⌘ + 1 / 2 / 3 / 4", desc: "Switch right-panel tab" },
     { keys: "Ctrl/⌘ + Shift + A", desc: "Go to artist of current track" },
@@ -33,6 +32,7 @@ import { getSpotifyLyricsContainer } from "./lib/resolvers";
   ];
 
   let helpEl: HTMLElement | null = null;
+  let releaseFocus: (() => void) | null = null;
 
   function buildHelp(): void {
     helpEl = document.createElement("div");
@@ -58,9 +58,11 @@ import { getSpotifyLyricsContainer } from "./lib/resolvers";
 
   function showHelp(): void {
     helpEl?.classList.remove("hidden");
+    if (helpEl) {helpEl.setAttribute("aria-label", "Keyboard shortcuts");releaseFocus = modalFocus(helpEl, hideHelp);}
   }
   function hideHelp(): void {
     helpEl?.classList.add("hidden");
+    releaseFocus?.(); releaseFocus = null;
   }
   function toggleHelp(): void {
     if (!helpEl) return;
@@ -102,6 +104,7 @@ import { getSpotifyLyricsContainer } from "./lib/resolvers";
   }
 
   function toggleLyrics(): void {
+    if (document.body.classList.contains('aurora-focus')) { document.dispatchEvent(new CustomEvent('toggle-focus')); return; }
     // Detect via DOM (instant) rather than body class (body class only
     // updates on the next DOM mutation tick, which can lag behind History
     // push when a redirect happens in the same task).
@@ -163,8 +166,8 @@ import { getSpotifyLyricsContainer } from "./lib/resolvers";
   }
 
   function nudgeOffset(deltaMs: number): void {
-    w.__lyricsOffsetMs = (w.__lyricsOffsetMs ?? 0) + deltaMs;
-    const val = w.__lyricsOffsetMs;
+    setTrackOffset(trackOffset() + deltaMs);
+    const val = trackOffset();
     const sign = val > 0 ? "+" : "";
     showToast(`Lyrics offset: ${sign}${val}ms`);
   }
@@ -202,6 +205,8 @@ import { getSpotifyLyricsContainer } from "./lib/resolvers";
         toggleHelp();
         return;
       }
+
+      if (e.key === "F3") {e.preventDefault(); document.dispatchEvent(new CustomEvent("toggle-focus")); return;}
 
       if (e.key === "F2") {
         e.preventDefault();
