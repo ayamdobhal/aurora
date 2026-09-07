@@ -14,3 +14,11 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Exercise installer in Windows PowerShell 5.1
+        shell: powershell
+        run: ./tests/install.test.ps1

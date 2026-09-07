@@ -54,7 +54,9 @@ Requires PowerShell 5+ (built into Windows 10/11). No extra tooling needed.
 iwr -useb https://raw.githubusercontent.com/ayamdobhal/aurora/main/install.ps1 | iex
 ```
 
-Both scripts download the latest release, copy the theme and extensions into your Spicetify config, and apply.
+Both scripts download the latest successful build, copy the theme and extensions into your actual Spicetify config directory, and apply. Tested pushes to `main` now publish a release automatically; allow the Release workflow to finish before updating. Each archive includes `BUILD.txt`, and the installer prints the revision and saves it as `Themes/aurora/.aurora-build`. Failed builds leave the previous successful release available. Version tags remain supported.
+
+Re-run the same one-line command to update. No Node/build tooling is required. The installer removes stale extension registrations only when they were recorded in Aurora's previous ownership manifest; unrelated extensions are preserved. Existing installations without a manifest are adopted without guessing ownership. Windows native-command failures stop the installer instead of reporting success.
 
 ### Manual (no just, no nix)
 
