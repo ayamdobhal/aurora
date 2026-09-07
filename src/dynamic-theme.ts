@@ -1,3 +1,5 @@
+import { onAccent, readableAccent } from "./lib/colors";
+
 (async function dynamicTheme() {
   while (!Spicetify?.Player?.addEventListener || !Spicetify?.Player?.data) {
     await new Promise((r) => setTimeout(r, 100));
@@ -139,7 +141,9 @@
     root.style.setProperty(`--spice-rgb-${name}`, rgb.join(","));
   }
 
-  function applyAccent(accent: Accent | null): void {
+  let displayed: RGB = [255,255,255];
+  let transitionFrame: number | null = null;
+  function applyAccent(accent: Accent | null, interpolated?: RGB): void {
     const root = document.documentElement;
     const isLight =
       getComputedStyle(root).getPropertyValue("--is_light").trim() === "1";
@@ -155,7 +159,9 @@
       l = isLight ? 0.35 : 0.45;
     }
 
-    const main = hslToRgb(h, s, l);
+    if (interpolated) [h,s,l] = rgbToHsl(...interpolated);
+    const main = interpolated ?? hslToRgb(h, s, l);
+    displayed = main;
     // Skip setVar("text") — accent-colored text looks muddy over the
     // translucent blurred bg. Leave --spice-text at Spotify's default.
     setVar("button", hslToRgb(h, s, Math.max(0, l - (isLight ? 0.1 : 0.08))));
@@ -169,18 +175,28 @@
     setVar("highlight", hslToRgb(h, s, isLight ? 0.9 : 0.1));
 
     const mainHex = rgbToHex(main);
-    root.style.setProperty("--lyrics-accent", mainHex);
-    root.style.setProperty("--rgb-lyrics-accent", main.join(","));
+    const textAccent = readableAccent(main);
+    root.style.setProperty("--aurora-accent-fill", mainHex);
+    root.style.setProperty("--aurora-on-accent", rgbToHex(onAccent(main)));
+    root.style.setProperty("--aurora-accent-text", rgbToHex(textAccent));
+    root.style.setProperty("--lyrics-accent", rgbToHex(textAccent));
+    root.style.setProperty("--rgb-lyrics-accent", textAccent.join(","));
 
-    root.style.setProperty("--essential-bright-accent", mainHex);
-    root.style.setProperty("--essential-positive", mainHex);
+    root.style.setProperty("--essential-bright-accent", rgbToHex(textAccent));
     root.style.setProperty("--background-bright-accent", mainHex);
     root.style.setProperty("--decorative-base", mainHex);
   }
 
   async function updateTheme(): Promise<void> {
     const track = Spicetify.Player.data?.item;
-    if (!track) return;
+    if (!track) {
+      if (transitionFrame !== null) cancelAnimationFrame(transitionFrame);
+      applyAccent(null);
+      document.documentElement.style.removeProperty("--aurora-next-image");
+      document.documentElement.style.setProperty("--aurora-art-mix", "0");
+      document.documentElement.style.removeProperty("--image_url");
+      return;
+    }
 
     const requestGeneration = generation;
     const meta = track.metadata || {};
@@ -188,24 +204,57 @@
     const extractUrl = toHttpUrl(
       meta.image_small_url || meta.image_url || meta.image_large_url,
     );
-    if (!bgUrl || !extractUrl) return;
-
-    document.documentElement.style.setProperty(
-      "--image_url",
-      `url("${bgUrl}")`,
-    );
-
-    if (cache.has(extractUrl)) {
-      applyAccent(cache.get(extractUrl) ?? null);
+    if (!bgUrl || !extractUrl) {
+      if (transitionFrame !== null) cancelAnimationFrame(transitionFrame);
+      applyAccent(null);
+      document.documentElement.style.removeProperty("--aurora-next-image");
+      document.documentElement.style.setProperty("--aurora-art-mix", "0");
+      document.documentElement.style.removeProperty("--image_url");
       return;
     }
 
-    const accent = await extractAccent(extractUrl);
+    // Decode artwork before presenting it, so the fade never exposes a blank frame.
+    if (typeof Image.prototype.decode === "function") {
+      const decoded = new Image(); decoded.src = bgUrl;
+      try { await decoded.decode(); } catch {
+        if (requestGeneration !== generation) return;
+        if (transitionFrame !== null) cancelAnimationFrame(transitionFrame);
+        const style = document.documentElement.style;
+        style.removeProperty('--image_url'); style.removeProperty('--aurora-next-image'); style.setProperty('--aurora-art-mix', '0');
+        applyAccent(null); return;
+      }
+    }
+    const accent = cache.has(extractUrl) ? cache.get(extractUrl)! : await extractAccent(extractUrl);
     // Album tracks share artwork; retain only a bounded number of palettes.
     cache.set(extractUrl, accent);
     if (cache.size > CACHE_LIMIT) cache.delete(cache.keys().next().value!);
     // A slower previous cover must not repaint a newer song's theme.
-    if (requestGeneration === generation) applyAccent(accent);
+    if (requestGeneration === generation) transition(bgUrl, accent, requestGeneration);
+  }
+
+  function transition(url: string, accent: Accent | null, revision: number): void {
+    const root = document.documentElement.style;
+    if (transitionFrame !== null) cancelAnimationFrame(transitionFrame);
+    const previousNext = root.getPropertyValue('--aurora-next-image');
+    if (previousNext) root.setProperty('--image_url', previousNext);
+    root.setProperty('--aurora-next-image', `url("${url}")`);
+    root.setProperty('--aurora-art-mix', '0');
+    const from = displayed;
+    const light = getComputedStyle(document.documentElement).getPropertyValue('--is_light').trim() === '1';
+    const target: RGB = accent ? hslToRgb(accent.h, accent.s, light ? .35 : .45) : light ? [0,0,0] : [255,255,255];
+    const instant = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || !root.getPropertyValue('--image_url');
+    const started = performance.now();
+    const tick = () => {
+      transitionFrame = null;
+      if (revision !== generation) return;
+      const t = instant ? 1 : Math.min(1, (performance.now()-started)/500);
+      const eased = t*t*(3-2*t);
+      applyAccent(accent, from.map((v,i) => Math.round(v+(target[i]-v)*eased)) as RGB);
+      root.setProperty('--aurora-art-mix', String(eased));
+      if (t < 1) transitionFrame = requestAnimationFrame(tick);
+      else {root.setProperty('--image_url', `url("${url}")`);root.removeProperty('--aurora-next-image');root.setProperty('--aurora-art-mix','0');}
+    };
+    tick();
   }
 
   function scheduleUpdate(): void {

@@ -4,6 +4,19 @@
   --font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --border-radius: 8px;
   --aurora-panel-inset: 1rem;
+  --aurora-surface: rgba(12, 14, 18, 0.82);
+  --aurora-elevated: #202328;
+  --aurora-sticky: #202328;
+  --aurora-text: #f5f6f7;
+  --aurora-text-secondary: #c4c8cf;
+  --aurora-text-disabled: #9298a2;
+  --aurora-hover: rgba(255, 255, 255, 0.08);
+  --aurora-selected: rgba(255, 255, 255, 0.12);
+  --aurora-border: rgba(255, 255, 255, 0.18);
+  --aurora-accent-fill: #ffffff;
+  --aurora-on-accent: #000000;
+  --aurora-accent-text: #ffffff;
+  --aurora-focus: #ffffff;
 
   /* Populated by dynamic-theme.js */
   --image_url: url('');
@@ -46,18 +59,18 @@ body.playback-paused::before {
 
 /* Top-level containers transparent so blurred album art shows through */
 .Root__top-container,
-.Root__main-view,
 .main-view-container__scroll-node,
 .under-main-view {
   background: transparent !important;
 }
 
-/* Left + right panels match main content: 40% dark tint + backdrop blur */
+/* Bound artwork brightness behind content; keep the surrounding art visible. */
+.Root__main-view,
 .Root__nav-bar,
 .Root__right-sidebar,
 [class*="NavBar"],
 [class*="RightSidebar"] {
-  background: rgba(0, 0, 0, 0.4) !important;
+  background: var(--aurora-surface) !important;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border-radius: 8px;
@@ -178,24 +191,38 @@ button[aria-label="Switch to art"] {
   color: #000 !important;
 }
 
-/* Primary play button ("▶" circle on playlists/albums/artist): the accent
-   fill and the inner glyph both resolve to the same accent tone on this
-   build, leaving the triangle invisible. Black against the bright-accent
-   fill reads across every artist-derived accent. */
-.main-playButton-PlayButton button .e-10180-icon,
-.main-playButton-PlayButton button .e-10180-icon path,
-button[data-encore-id="buttonPrimary"] .e-10180-icon,
-button[data-encore-id="buttonPrimary"] .e-10180-icon path {
-  color: #000 !important;
-  fill: #000 !important;
+/* Primary controls own both the fill and foreground; no Encore build classes. */
+button[data-encore-id="buttonPrimary"] {
+  --background-base: var(--aurora-accent-fill) !important;
+  --background-highlight: var(--aurora-accent-fill) !important;
+  --text-base: var(--aurora-on-accent) !important;
+  color: var(--aurora-on-accent) !important;
+}
+button[data-encore-id="buttonPrimary"] > span {
+  background-color: var(--aurora-accent-fill) !important;
+  color: var(--aurora-on-accent) !important;
+}
+button[data-encore-id="buttonPrimary"] svg,
+button[data-encore-id="buttonPrimary"] svg path {
+  color: var(--aurora-on-accent) !important;
+  fill: currentColor !important;
+}
+button[data-encore-id="buttonPrimary"]:hover:not(:disabled) > span {
+  box-shadow: inset 0 0 0 2px var(--aurora-on-accent);
+}
+button[data-encore-id="buttonPrimary"]:active:not(:disabled) > span {
+  transform: scale(0.97);
 }
 
-/* Selected filter chip ("All" / genre pills): encore-inverted-light-set
-   resolves the label to the same tone as the filled pill, so the text
-   disappears. Force black for legibility on the selected state. */
-.e-10180-legacy-chip--selected .e-10180-legacy-chip__inner--selected,
-.e-10180-legacy-chip--selected .e-10180-legacy-chip__inner {
-  color: #000 !important;
+/* Selected chips use the artwork fill with a contrast-aware foreground. */
+button[role="checkbox"][aria-checked="true"] {
+  --text-base: var(--aurora-on-accent) !important;
+  --background-base: var(--aurora-accent-fill) !important;
+  color: var(--aurora-on-accent) !important;
+}
+button[role="checkbox"][aria-checked="true"] > span {
+  background-color: var(--aurora-accent-fill) !important;
+  color: var(--aurora-on-accent) !important;
 }
 
 /* Playlist page content wrapper — drop the dark fill so our blurred album
@@ -235,14 +262,13 @@ button[data-encore-id="buttonPrimary"] .e-10180-icon path {
 /* Solid-color overlay that Spotify fades in on scroll to replace the banner.
    It's an empty div carrying --background-base + --background-elevated-* CSS
    vars inline. Hide it entirely so the blurred album bg shows through. */
-div[style*="--background-base"][style*="--background-elevated"]:empty {
+.Root__main-view div[style*="--background-base"][style*="--background-elevated"]:empty {
   display: none !important;
 }
 
 /* Kill Spotify's own accent gradient + home header (HPTO) bg */
 .main-view-container__scroll-node-child,
 [class*="backgroundNoise"],
-[style*="--background-base"],
 [class*="HomeHeader"],
 [class*="home-header"],
 [class*="hpto" i],
@@ -265,13 +291,12 @@ div[style*="--background-base"][style*="--background-elevated"]:empty {
   z-index: 10;
 }
 
-/* Sticky top-bar bg layer on scroll — stay transparent, just apply a blur
-   so content underneath reads clearly. */
+/* Sticky headings must fully occlude moving rows behind their labels. */
 .main-topBar-background,
 .main-trackList-trackListHeader {
-  background: transparent !important;
-  backdrop-filter: blur(40px) !important;
-  -webkit-backdrop-filter: blur(40px) !important;
+  background: var(--aurora-sticky) !important;
+  color: var(--aurora-text-secondary) !important;
+  border-bottom: 1px solid var(--aurora-border);
 }
 
 /* Home button + search bar + nav (back/forward) + friend-activity/lyrics
@@ -291,7 +316,7 @@ button[aria-label="What's New"],
 button.custom-navlink[aria-label="Marketplace"],
 button.main-globalNav-navLink[aria-label="Marketplace"],
 [data-lyrics-btn="1"] {
-  background: rgba(0, 0, 0, 0.4) !important;
+  background: var(--aurora-surface) !important;
   backdrop-filter: blur(8px) !important;
   -webkit-backdrop-filter: blur(8px) !important;
   border-radius: 999px;
@@ -381,9 +406,9 @@ input.x-searchInput-searchInputInput {
   display: none !important;
 }
 
-/* Subtle dark tint on the main content area so cards read against the bg */
+/* The outer main view owns the scrim; do not darken the same pane twice. */
 .main-view-container {
-  background: rgba(0, 0, 0, 0.4) !important;
+  background: transparent !important;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
@@ -419,22 +444,9 @@ a[href^="/genre/podcasts-"] {
   display: none !important;
 }
 
-/* Floating popouts: Connect bar, device picker, Listen-on-your-speaker
-   notifications, toasts, and anything else that hangs off the bottom bar. */
+/* Hide only the replaced bottom strip, never its portaled feedback/pickers. */
 .main-connectBar-container,
-.connect-device-list-container,
-[data-testid="connect-device-picker"],
-[data-testid="connect-device-list"],
-[data-testid*="connectBar" i],
-[data-testid*="connect-bar" i],
-[data-testid*="queue-bar" i],
-[class*="ConnectAside"],
-[class*="ConnectBar"],
-.main-notification-root-container,
-[data-testid*="notification-bar" i],
-[data-testid*="toast" i],
-[aria-label*="Listen on" i],
-[aria-label*="Connect to a device" i] {
+[data-testid="queue-bar"] {
   display: none !important;
 }
 
@@ -485,7 +497,7 @@ body.on-lyrics-route #lyrics-slot {
 /* ==================== Lyrics renderer ==================== */
 
 .lyrics-loading {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--aurora-text-secondary);
   font-size: 1rem;
 }
 
@@ -505,7 +517,7 @@ body.on-lyrics-route #lyrics-slot {
   overflow-y: auto;
   padding: 40vh 2rem;
   scroll-behavior: smooth;
-  scrollbar-width: none;
+  scrollbar-width: thin;
   text-align: center;
   /* Fade lines far from center — only ~5 lines sit prominently (2 past, 1
      active, 2 upcoming); others dissolve into the background. */
@@ -533,7 +545,7 @@ body.on-lyrics-route #lyrics-slot {
   );
 }
 .lyrics-synced::-webkit-scrollbar {
-  display: none;
+  width: 6px;
 }
 
 .lyric-line {
@@ -627,11 +639,11 @@ body.on-lyrics-route #lyrics-slot {
   color: rgba(255, 255, 255, 0.85);
   font-size: 1.15rem;
   line-height: 1.8;
-  scrollbar-width: none;
+  scrollbar-width: thin;
   text-align: center;
 }
 .lyrics-unsynced::-webkit-scrollbar {
-  display: none;
+  width: 6px;
 }
 
 .lyric-line-plain {
@@ -738,7 +750,7 @@ body.playback-paused .vinyl-disc {
 }
 
 #cmd-input::placeholder {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--aurora-text-secondary);
 }
 
 .cmd-results {
@@ -788,7 +800,7 @@ body.playback-paused .vinyl-disc {
 }
 
 .cmd-result-meta {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--aurora-text-secondary);
   font-size: 0.85rem;
   white-space: nowrap;
   overflow: hidden;
@@ -813,7 +825,8 @@ body.playback-paused .vinyl-disc {
 }
 
 .Root__right-sidebar {
-  min-width: 340px;
+  min-width: 0 !important;
+  width: var(--aurora-right-width, 340px) !important;
 }
 
 #custom-right-panel {
@@ -825,6 +838,7 @@ body.playback-paused .vinyl-disc {
   padding: var(--aurora-panel-inset);
   gap: 1rem;
   overflow: hidden;
+  container-type: inline-size;
 }
 
 /* Explicit rows keep optional context visibility from shifting other children. */
@@ -867,7 +881,7 @@ body.playback-paused .vinyl-disc {
 }
 
 .crp-context-label {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--aurora-text-secondary);
   text-transform: uppercase;
   font-size: 0.66rem;
   letter-spacing: 0.06em;
@@ -977,7 +991,7 @@ a.crp-link:hover {
 .crp-track-album {
   display: block;
   font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--aurora-text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1127,7 +1141,8 @@ a.crp-link:hover {
 }
 
 .crp-tab-bar {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.25rem;
   margin-bottom: 0.75rem;
 }
@@ -1135,9 +1150,9 @@ a.crp-link:hover {
 .crp-tab {
   background: transparent;
   border: none;
-  color: rgba(255, 255, 255, 0.5);
-  padding: 0.35rem 0.75rem;
-  font-size: 0.8rem;
+  color: var(--aurora-text-secondary);
+  padding: 0.35rem 0.2rem;
+  font-size: clamp(0.68rem, 3.5cqw, 0.8rem);
   font-weight: 600;
   font-family: inherit;
   letter-spacing: 0.02em;
@@ -1153,6 +1168,14 @@ a.crp-link:hover {
   color: rgba(255, 255, 255, 0.85);
 }
 
+@container (max-width: 260px) {
+  .crp-tab {
+    font-size: 0.65rem;
+    padding-inline: 0;
+    letter-spacing: 0;
+  }
+}
+
 .crp-tab.active {
   color: #000;
   background: #fff;
@@ -1160,6 +1183,8 @@ a.crp-link:hover {
 
 .crp-tab-action {
   display: none;
+  grid-column: 1 / -1;
+  justify-self: end;
   margin-left: auto;
   align-self: center;
   align-items: center;
@@ -1539,7 +1564,7 @@ a.crp-link:hover {
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--aurora-text-secondary);
 }
 
 /* Lyrics toggle (replaces Spotify's Friend Activity button in top bar) */
@@ -1657,66 +1682,19 @@ a.crp-link:hover {
   transform: translateX(-50%) translateY(0);
 }
 
-/* ==================== Scrollbars (owned surfaces hide) ==================== */
-
-.main-view-container__scroll-node,
-.main-view-container,
-.Root__nav-bar,
-.Root__right-sidebar,
-#lyrics-slot,
-.lyrics-synced,
-.lyrics-unsynced,
-.cmd-results,
-.shortcut-modal,
-.crp-tab-pane {
-  scrollbar-width: none !important;
-  -ms-overflow-style: none !important;
+/* Shared native/custom scroll treatment, including Spotify's anonymous scrollers. */
+:where(.Root__main-view, .Root__nav-bar, .Root__right-sidebar, #custom-right-panel,
+       #lyrics-slot, .cmd-results, .shortcut-modal, #mini-player),
+:where(.Root__main-view, .Root__nav-bar, .Root__right-sidebar, #custom-right-panel,
+       #lyrics-slot, #mini-player) * {
+  scrollbar-width: thin !important;
+  scrollbar-color: transparent transparent;
 }
-
-.main-view-container__scroll-node::-webkit-scrollbar,
-.main-view-container__scroll-node::-webkit-scrollbar-track,
-.main-view-container__scroll-node::-webkit-scrollbar-thumb,
-.main-view-container__scroll-node::-webkit-scrollbar-corner,
-.main-view-container::-webkit-scrollbar,
-.main-view-container::-webkit-scrollbar-track,
-.main-view-container::-webkit-scrollbar-thumb,
-.main-view-container::-webkit-scrollbar-corner,
-.Root__nav-bar::-webkit-scrollbar,
-.Root__nav-bar::-webkit-scrollbar-track,
-.Root__nav-bar::-webkit-scrollbar-thumb,
-.Root__nav-bar::-webkit-scrollbar-corner,
-.Root__right-sidebar::-webkit-scrollbar,
-.Root__right-sidebar::-webkit-scrollbar-track,
-.Root__right-sidebar::-webkit-scrollbar-thumb,
-.Root__right-sidebar::-webkit-scrollbar-corner,
-#lyrics-slot::-webkit-scrollbar,
-#lyrics-slot::-webkit-scrollbar-track,
-#lyrics-slot::-webkit-scrollbar-thumb,
-#lyrics-slot::-webkit-scrollbar-corner,
-.lyrics-synced::-webkit-scrollbar,
-.lyrics-synced::-webkit-scrollbar-track,
-.lyrics-synced::-webkit-scrollbar-thumb,
-.lyrics-synced::-webkit-scrollbar-corner,
-.lyrics-unsynced::-webkit-scrollbar,
-.lyrics-unsynced::-webkit-scrollbar-track,
-.lyrics-unsynced::-webkit-scrollbar-thumb,
-.lyrics-unsynced::-webkit-scrollbar-corner,
-.cmd-results::-webkit-scrollbar,
-.cmd-results::-webkit-scrollbar-track,
-.cmd-results::-webkit-scrollbar-thumb,
-.cmd-results::-webkit-scrollbar-corner,
-.shortcut-modal::-webkit-scrollbar,
-.shortcut-modal::-webkit-scrollbar-track,
-.shortcut-modal::-webkit-scrollbar-thumb,
-.shortcut-modal::-webkit-scrollbar-corner,
-.crp-tab-pane::-webkit-scrollbar,
-.crp-tab-pane::-webkit-scrollbar-track,
-.crp-tab-pane::-webkit-scrollbar-thumb,
-.crp-tab-pane::-webkit-scrollbar-corner {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
-  background: transparent !important;
+:where(.Root__main-view, .Root__nav-bar, .Root__right-sidebar, #custom-right-panel,
+       #lyrics-slot, .cmd-results, .shortcut-modal, #mini-player):is(:hover, :focus-within),
+:where(.Root__main-view, .Root__nav-bar, .Root__right-sidebar, #custom-right-panel,
+       #lyrics-slot, #mini-player):is(:hover, :focus-within) * {
+  scrollbar-color: #9298a2 transparent;
 }
 
 /* ==================== Right-panel context menu ==================== */
@@ -2086,7 +2064,7 @@ a.crp-link:hover {
 .mp-tab {
   background: transparent;
   border: none;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--aurora-text-secondary);
   padding: 0.3rem 0.7rem;
   font-size: 0.72rem;
   font-weight: 600;
@@ -2120,11 +2098,11 @@ a.crp-link:hover {
   padding: 0.5rem 0.75rem 0.75rem;
   overflow-y: auto;
   display: none;
-  scrollbar-width: none;
+  scrollbar-width: thin;
 }
 
 .mp-tab-pane::-webkit-scrollbar {
-  display: none;
+  width: 6px;
 }
 
 .mp-tab-pane.active {
@@ -2134,7 +2112,7 @@ a.crp-link:hover {
 .mp-empty {
   padding: 1.5rem 0.5rem;
   text-align: center;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--aurora-text-secondary);
   font-size: 0.85rem;
 }
 
@@ -2145,7 +2123,7 @@ a.crp-link:hover {
 
 .mp-line {
   padding: 0.25rem 0;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--aurora-text-secondary);
   transition:
     color 220ms ease,
     font-weight 220ms ease;
@@ -2244,3 +2222,289 @@ html.aurora-hide-titlebar > body::after { display: none !important; }
 html.aurora-hide-titlebar .main-globalNav-contentRight > .main-topBar-topbarContentRight:empty {
   display: none !important;
 }
+
+/* ==================== Shared contrast and interaction states ==================== */
+.Root__main-view, .Root__nav-bar, .Root__right-sidebar, .Root__globalNav,
+#global-nav-bar, #custom-right-panel, #mini-player, [role="menu"], [role="dialog"] {
+  --text-base: var(--aurora-text);
+  --text-subdued: var(--aurora-text-secondary);
+  --text-bright-accent: var(--aurora-accent-text);
+  --text-positive: #a0e8b6;
+  --essential-bright-accent: var(--aurora-accent-text);
+  --essential-subdued: var(--aurora-text-secondary);
+}
+[role="menu"], .cmd-modal, .shortcut-modal, .crp-ctxmenu {
+  background-color: var(--aurora-elevated) !important;
+  color: var(--aurora-text);
+}
+[role="menu"] [aria-checked="true"],
+[role="menu"] [aria-selected="true"] {
+  color: var(--aurora-accent-text) !important;
+}
+:where(button, a, input, select, #custom-right-panel [tabindex], #mini-player [tabindex]):focus-visible {
+  outline: 2px solid var(--aurora-focus) !important;
+  outline-offset: 3px;
+}
+:where(.crp-list-row, .cmd-result, .crp-ctxmenu-item):hover {
+  background-color: var(--aurora-hover);
+}
+:where(.cmd-result.selected, .crp-device-active) {
+  background-color: var(--aurora-selected);
+}
+.aurora-lyrics-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  padding: 6px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--aurora-surface);
+  color: var(--aurora-text-secondary);
+  cursor: pointer;
+}
+.aurora-lyrics-toggle:hover {
+  background: var(--aurora-elevated);
+  color: var(--aurora-text);
+}
+.aurora-lyrics-toggle[aria-pressed="true"] {
+  background: var(--aurora-selected);
+  color: var(--aurora-accent-text);
+  box-shadow: inset 0 -2px currentColor;
+}
+
+/* Spotify's resize handles live just outside each sidebar. Clip content,
+   not the handles; native resizing owns bounds, keyboard input and storage. */
+.Root__nav-bar, .Root__right-sidebar {
+  overflow: visible !important;
+}
+.Root__nav-bar > nav, #custom-right-panel {
+  border-radius: var(--border-radius);
+  overflow: hidden;
+}
+:is(.Root__nav-bar, .Root__right-sidebar) > .LayoutResizer__resize-bar {
+  z-index: 20;
+  cursor: col-resize;
+  touch-action: none;
+}
+:is(.Root__nav-bar, .Root__right-sidebar) > .LayoutResizer__resize-bar::before,
+:is(.Root__nav-bar, .Root__right-sidebar) > .LayoutResizer__resize-bar::after {
+  display: none;
+}
+.Root__right-sidebar > .LayoutResizer__resize-bar { display: none; }
+.aurora-panel-resizer {
+  position: absolute;
+  inset: 0 auto 0 -8px;
+  width: 8px;
+  z-index: 20;
+  cursor: col-resize;
+  touch-action: none;
+  display: flex;
+  justify-content: center;
+}
+body.aurora-resizing, body.aurora-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+/* Artwork still determines the atmosphere; the next decoded cover fades in. */
+body::after {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: var(--aurora-next-image) center / cover no-repeat;
+  opacity: var(--aurora-art-mix, 0);
+  filter: blur(30px) brightness(0.7) saturate(1.15);
+  transform: scale(1.2);
+}
+body::before { transition: none; }
+:root { --aurora-surface: rgba(12, 14, 18, 0.72); --aurora-text-secondary: #e0e3e8; }
+.crp-lyrics, .crp-focus { position: absolute; top: -30px; width: 26px; height: 26px; padding: 5px; }
+.crp-lyrics { right: 0; } .crp-focus { left: 0; }
+.crp-cover-wrap { margin-bottom: 14px; }
+.crp-btn[aria-pressed="true"] { color: var(--aurora-accent-text); }
+.aurora-jam { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; padding: 10px; background: var(--aurora-hover); border-radius: 8px; }
+.aurora-jam p { font-size: 11px; margin: 4px 0 0; color: var(--aurora-text-secondary); }
+.aurora-jam button, .crp-status button, .lyrics-tools button, .lyrics-tools select, .lyrics-follow, .aurora-focus-controls button {
+  color: var(--aurora-text); background: var(--aurora-elevated); border: 1px solid var(--aurora-border); border-radius: 14px; padding: 5px 9px; font: inherit; cursor: pointer;
+}
+.crp-status { padding: 8px; font-size: 12px; color: var(--aurora-text-secondary); }
+.crp-status[hidden] { display: none; }
+.crp-status button { margin-left: 8px; }
+.aurora-lyrics-view { position: relative; min-height: 0; }
+#lyrics-slot.aurora-lyrics-view { flex-direction: column; }
+.lyrics-tools { position: absolute; z-index: 5; top: 8px; left: 12px; right: 12px; display: flex; gap: 6px; align-items: center; justify-content: center; flex-wrap: wrap; font-size: 12px; }
+.lyrics-tools label { display: flex; align-items: center; gap: 4px; }
+.lyrics-content { width: 100%; height: 100%; min-height: 0; overflow: hidden; }
+.lyrics-empty { display: grid; place-items: center; height: 100%; padding: 60px 20px; text-align: center; }
+.lyrics-follow { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 5; white-space: nowrap; }
+.lyrics-follow[hidden] { display: none; }
+button.lyric-line { display: block; border: 0; background: transparent; width: 100%; font-family: inherit; }
+.mp-tab-pane.aurora-lyrics-view { position: absolute; overflow: hidden; }
+.mp-tab-pane.aurora-lyrics-view.active { display: flex; flex-direction: column; }
+.mp-tab-pane .lyrics-tools { position: relative; top: auto; left: auto; right: auto; padding: 4px; font-size: 10px; }
+.mp-tab-pane .lyrics-tools label { font-size: 0; }
+.mp-tab-pane .lyrics-tools select { font-size: 10px; max-width: 80px; }
+.mp-tab-pane .lyrics-tools { flex: 0 0 auto; }
+.mp-tab-pane .lyrics-content { flex: 1 1 0; height: 0; }
+.mp-tab-pane .lyrics-synced { padding: 30% 8px; mask-image: none; -webkit-mask-image: none; }
+.mp-tab-pane .lyric-line, .mp-tab-pane .lyric-line.active { font-size: 16px; filter: none; }
+.mp-tab-pane .lyric-line.active { color: var(--lyrics-accent); }
+.aurora-focus-controls { display: none; }
+body.aurora-focus .Root__nav-bar, body.aurora-focus .Root__right-sidebar, body.aurora-focus .Root__globalNav { display: none !important; }
+body.aurora-focus .Root__top-container { grid-template-columns: 0 minmax(0, 1fr) 0 !important; }
+body.aurora-focus .aurora-focus-controls { display: flex; position: fixed; z-index: 90; bottom: 12px; left: 50%; transform: translateX(-50%); gap: 10px; align-items: center; background: var(--aurora-surface); border-radius: 24px; padding: 8px; }
+.aurora-focus-controls > :not([data-exit]) { opacity: .25; transition: opacity 200ms; }
+.aurora-focus-controls:is(:hover,:focus-within) > * { opacity: 1; }
+.aurora-focus-controls label { display: flex; align-items: center; gap: 6px; }
+@media (prefers-reduced-motion: reduce) {
+  body::before, body::after, .vinyl-disc, .crp-tab-pane, .lyric-line, .mp-line { animation: none !important; transition: none !important; }
+  .lyrics-synced, .lyrics-unsynced, .mp-tab-pane { scroll-behavior: auto !important; }
+}
+
+/* Jam stays inside Friends; the Devices shortcut selects the same view. */
+.aurora-jam { display: block; padding: 0; overflow: hidden; }
+.aurora-jam .aurora-jam-heading { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px; background: transparent; text-align: left; border: 0; }
+.aurora-jam-heading strong { font-size: 13px; }
+.aurora-jam-summary { flex: 1; font-size: 10px; color: var(--aurora-text-secondary); text-align: right; }
+.aurora-jam-heading[aria-expanded="false"] > :last-child { transform: rotate(-90deg); }
+.aurora-jam-content { padding: 0 10px 10px; }
+.aurora-jam-content[hidden], .aurora-jam-confirm[hidden] { display: none; }
+.aurora-jam-members { list-style: none; margin: 8px 0; padding: 0; max-height: 160px; overflow: auto; }
+.aurora-jam-members li { display: flex; align-items: center; gap: 7px; min-height: 34px; }
+.aurora-jam-members img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
+.aurora-jam-members li > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.aurora-jam-members small { font-size: 10px; color: var(--aurora-accent-text); }
+.aurora-jam .aurora-jam-members button { font-size: 10px; padding: 4px; }
+.aurora-jam-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.aurora-jam-confirm { margin-top: 8px; }
+.aurora-jam-confirm button { margin: 6px 6px 0 0; }
+.aurora-jam-shortcut { width: 100%; padding: 9px; margin-bottom: 10px; border: 1px solid var(--aurora-border); border-radius: 7px; background: var(--aurora-hover); color: var(--aurora-text); }
+.mp-tab-pane .lyrics-tools { gap: 3px; padding: 2px 0 6px; }
+.mp-tab-pane .lyrics-tools button, .mp-tab-pane .lyrics-tools select { font-size: 10px; line-height: 1.2; padding: 4px 6px; }
+.mp-tab-pane .lyrics-tools output { font-size: 10px; }
+.mp-tab-pane .lyrics-follow { font-size: 10px; bottom: 6px; padding: 4px 8px; }
+
+/* Artwork-tinted glass controls: a luminous edge and tactile response. */
+:is(.aurora-jam button:not(.aurora-jam-heading), .aurora-jam-shortcut, .lyrics-tools button, .lyrics-tools select, .lyrics-follow) {
+  appearance: none;
+  color: var(--aurora-text);
+  border: 1px solid color-mix(in srgb, var(--aurora-accent-text) 20%, transparent);
+  border-radius: 9px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--aurora-accent-fill) 14%, #24262b), #191b20);
+  box-shadow: inset 0 1px 0 #ffffff0c, 0 2px 6px #00000020;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  padding: 7px 10px;
+  cursor: pointer;
+  transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, translate 180ms ease;
+}
+:is(.aurora-jam button:not(.aurora-jam-heading), .aurora-jam-shortcut, .lyrics-tools button, .lyrics-tools select, .lyrics-follow):hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--aurora-accent-text) 65%, transparent);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--aurora-accent-fill) 24%, #303238), #23252b);
+  box-shadow: inset 0 1px 0 #ffffff14, 0 3px 14px color-mix(in srgb, var(--aurora-accent-fill) 20%, transparent);
+  translate: 0 -1px;
+}
+:is(.aurora-jam button, .aurora-jam-shortcut, .lyrics-tools button, .lyrics-follow):active:not(:disabled) { translate: 0 0; box-shadow: inset 0 2px 5px #00000038; }
+:is(.aurora-jam button, .aurora-jam-shortcut, .lyrics-tools button, .lyrics-tools select, .lyrics-follow):focus-visible { outline: 2px solid var(--aurora-accent-text); outline-offset: 3px; }
+:is(.aurora-jam button, .lyrics-tools button, .lyrics-tools select):disabled { opacity: .45; cursor: default; box-shadow: none; }
+.aurora-jam button[data-intent="primary"] {
+  color: var(--aurora-on-accent);
+  background: var(--aurora-accent-fill);
+  border-color: transparent;
+  font-weight: 650;
+  box-shadow: inset 0 1px 0 #ffffff24, 0 3px 12px color-mix(in srgb, var(--aurora-accent-fill) 20%, transparent);
+}
+.aurora-jam button[data-intent="primary"]:hover:not(:disabled) {
+  color: var(--aurora-on-accent);
+  background: var(--aurora-accent-fill);
+  box-shadow: inset 0 0 0 1px var(--aurora-on-accent), 0 4px 18px color-mix(in srgb, var(--aurora-accent-fill) 35%, transparent);
+}
+.aurora-jam button[data-intent="quiet"] { background: transparent; border-color: transparent; box-shadow: none; color: var(--aurora-text-secondary); }
+.aurora-jam button[data-intent="quiet"]:hover:not(:disabled) { color: #ffd5d9; background: #542831; border-color: #c96c8055; box-shadow: none; }
+.aurora-jam { border: 1px solid color-mix(in srgb, var(--aurora-accent-text) 12%, transparent); border-radius: 12px; background: linear-gradient(150deg, color-mix(in srgb, var(--aurora-accent-fill) 9%, #202126), #17191ed9); }
+.aurora-jam .aurora-jam-heading { border-radius: 0; box-shadow: none; transition: background 180ms ease; }
+.aurora-jam .aurora-jam-heading:hover { background: #ffffff08; }
+.aurora-jam-heading strong::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 7px; border-radius: 50%; background: var(--aurora-accent-text); box-shadow: 0 0 9px color-mix(in srgb, var(--aurora-accent-text) 40%, transparent); }
+.aurora-jam-actions { align-items: center; margin-top: 10px; }
+.aurora-jam .aurora-jam-members button { padding: 4px 6px; }
+#lyrics-slot .lyrics-tools {
+  left: 50%; right: auto; transform: translateX(-50%); width: max-content; max-width: calc(100% - 24px);
+  padding: 6px; gap: 5px; border-radius: 13px;
+  background: #17191ee8; backdrop-filter: blur(18px);
+  border: 1px solid color-mix(in srgb, var(--aurora-accent-text) 15%, transparent);
+  box-shadow: 0 5px 24px #00000025, inset 0 1px 0 #ffffff08;
+}
+.lyrics-tools label { color: var(--aurora-text-secondary); font-size: 10px; gap: 6px; }
+.lyrics-tools output { font-variant-numeric: tabular-nums; font-size: 11px; color: var(--aurora-accent-text); min-width: 36px; text-align: center; }
+.lyrics-tools button[data-offset] { width: 28px; padding-inline: 0; font-size: 14px; }
+.lyrics-tools select { padding-right: 22px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='m3 5 3 3 3-3' fill='none' stroke='%23ddd' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 6px center; }
+.lyrics-tools select option { background: #202228; color: #fff; }
+.mp-tab-pane .lyrics-tools button, .mp-tab-pane .lyrics-tools select { font-size: 10px; padding: 4px 6px; }
+.mp-tab-pane .lyrics-tools select { padding-right: 20px; }
+.mp-tab-pane .lyrics-tools button[data-offset] { width: 22px; }
+.mp-tab-pane .lyrics-tools output { min-width: 30px; }
+@media (prefers-reduced-motion: reduce) {
+  :is(.aurora-jam button, .aurora-jam-shortcut, .lyrics-tools button, .lyrics-tools select, .lyrics-follow) { transition: none; translate: none !important; }
+}
+
+/* Mix key badges use background-base as their ink. Aurora's transparent
+   page token must not make the key notation transparent too. The native
+   component has no semantic hook; cover its grid/metadata structure as well. */
+:is(.mOhp6uUOOQY4YFdW,
+    [role="gridcell"] > div[style*="background-color"]:has(> [data-encore-id="text"]:only-child),
+    [data-testid="bpm-key-metadata"] div[style*="background-color"]):has(> [data-encore-id="text"]) {
+  --background-base: #111;
+  color: #111;
+}
+:is(.mOhp6uUOOQY4YFdW,
+    [role="gridcell"] > div[style*="background-color"]:has(> [data-encore-id="text"]:only-child),
+    [data-testid="bpm-key-metadata"] div[style*="background-color"]) > [data-encore-id="text"] { color: #111; }
+
+/* Keep the toolbar's hit area and tab order while its chrome rests out of view. */
+.lyrics-tools { opacity: 0; transition: opacity 180ms ease 350ms; }
+.lyrics-tools:is(:hover, :focus-within) { opacity: 1; transition-delay: 0ms; }
+@media (hover: none) { .lyrics-tools { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .lyrics-tools { transition: none; } }
+
+/* Player transport shares Jam's artwork accent, including the detached player. */
+.crp-btn, .mp-btn { color: var(--aurora-accent-text); }
+.crp-btn:is(:hover, .active, [aria-pressed="true"]), .mp-btn:is(:hover, .active, [aria-pressed="true"]) {
+  color: var(--aurora-accent-text);
+  background: color-mix(in srgb, var(--aurora-accent-fill) 18%, transparent);
+}
+.crp-btn.crp-primary, .mp-btn.mp-primary,
+.crp-btn.crp-primary:hover, .mp-btn.mp-primary:hover {
+  background: var(--aurora-accent-fill);
+  color: var(--aurora-on-accent);
+  box-shadow: inset 0 1px 0 #ffffff24, 0 3px 14px color-mix(in srgb, var(--aurora-accent-fill) 25%, transparent);
+}
+.crp-btn.crp-primary:hover, .mp-btn.mp-primary:hover {
+  box-shadow: inset 0 0 0 1px var(--aurora-on-accent), 0 4px 18px color-mix(in srgb, var(--aurora-accent-fill) 35%, transparent);
+}
+.crp-btn.crp-primary:active, .mp-btn.mp-primary:active { transform: scale(.97); }
+@media (prefers-reduced-motion: reduce) {
+  .crp-btn.crp-primary, .mp-btn.mp-primary { transition: none; transform: none !important; }
+}
+
+/* Accents identify the current track and selected actions on bounded surfaces. */
+:root {
+  --aurora-focus: var(--aurora-accent-text);
+  --aurora-selected: color-mix(in srgb, var(--aurora-accent-fill) 12%, #202328);
+}
+.crp-tab.active, .mp-tab.active {
+  background: var(--aurora-accent-fill);
+  color: var(--aurora-on-accent);
+}
+.crp-track-name, .mp-title { color: var(--aurora-accent-text); }
+.crp-tab:not(.active):hover, .mp-tab:not(.active):hover,
+.crp-list-row:is(:hover, :focus-visible) .crp-list-name,
+.mp-queue-row:is(:hover, :focus-visible) .mp-queue-name,
+.cmd-result.selected .cmd-result-name,
+.crp-ctxmenu-item:not(.crp-ctxmenu-danger):is(:hover, :focus-visible) {
+  color: var(--aurora-accent-text);
+}
+.Root__nav-bar a[aria-current="page"], .Root__globalNav a[aria-current="page"] { color: var(--aurora-accent-text); }
+.main-trackList-trackList { --text-positive: var(--aurora-accent-text); }

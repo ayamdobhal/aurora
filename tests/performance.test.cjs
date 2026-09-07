@@ -40,6 +40,7 @@ test("artwork extraction is shared across album tracks and stale loads cannot re
       return 1;
     };
     w.clearTimeout = () => {};
+    w.matchMedia = () => ({matches: true});
     w.Image = class {
       constructor() {
         images.push(this);
