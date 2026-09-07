@@ -2,12 +2,16 @@
 
 ## Unreleased
 
+## v0.2.0 — 2026-09-08
+
 ### Changed
 - Restored album accents to selected tabs/filter chips, current-track titles, focus rings and relevant hover states, retaining contrast-aware text and icon colors.
 - Jam and lyrics controls use artwork-tinted glass, accent primary actions, hover/focus feedback and reduced-motion support. Lyrics controls share a compact floating toolbar.
 - Removed the topbar lyrics toggle; the player button and F2 remain available.
 
 ### Added
+- Windows title-bar hiding with F8 to restore it, reclaimed caption-button space and symmetric topbar padding.
+- Installable builds from tested pushes to main, with source revision reporting in both installers.
 - Inline, collapsible Jam above Friends: participants, host labels, copy invite link, host removal/end and guest leave controls, with inline confirmation and failure feedback. Devices opens the same section.
 - Lyrics button on the player, shared main/miniplayer lyrics engine, source selection, retry, per-track timing/reset and manual-reading/follow controls.
 - Persistent sidebar and miniplayer choices, global preferred lyrics provider and bounded per-track offsets.
@@ -16,6 +20,9 @@
 - Resize both sidebars by dragging their inner edges, without visible handles or extra controls. Player width persists and supports keyboard adjustment and reset.
 
 ### Fixed
+- Player artwork keeps its grid position when the playback-context label is missing.
+- Unchanged player labels no longer trigger redundant DOM writes; artwork palettes use a bounded cache and stale image loads are ignored.
+- Installers use the active Spicetify config path, preserve unrelated extensions and reject incomplete downloads. Windows installation stops when Spicetify reports a failure.
 - Mix key badges retain their native key colors with readable notation. Lyrics controls auto-hide until hover or keyboard focus.
 - Main and miniplayer transport controls share the album-accent styling used by Jam.
 - Keyboard focus trapping/restoration in help and palette, accessible sliders/tabs and keyboard row/context-menu actions.
@@ -32,6 +39,7 @@
 - Lyrics requests cannot overwrite a replacement slot or restart tracking against a detached view.
 
 ### Tests
+- 68 automated regression tests, shell and Windows PowerShell installer checks, and a live compatibility probe that distinguishes missing Spicetify setup from missing Spotify UI anchors.
 - Added inline Jam session/race/confirmation/clipboard fixtures, dialog/slider/tab keyboard checks, device transfer failure/refresh race tests, lyrics timing/follow/timeout regressions and crossfade/reduced-motion checks.
 - Rendered miniplayer lyrics containment at three window sizes alongside the 28 palette/control combinations.
 - Added palette contrast, rendered control-state, panel resizing/persistence/cancellation, topbar remount and missing-artwork regressions.
