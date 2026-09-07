@@ -142,13 +142,13 @@ const rgb = (text) => text.match(/[\d.]+/g).slice(0,3).map(Number);
     }
     await badge.evaluate(e=>e.className='future-spotify-badge');
     assert.equal(await page.locator('[role="gridcell"] span').evaluate(e=>getComputedStyle(e).color),'rgb(17, 17, 17)','structural fallback survives regenerated native class names');
-    await page.mouse.move(590,290);await page.waitForTimeout(550);
+    await page.mouse.move(590,290);await page.waitForFunction(() => getComputedStyle(document.querySelector('.lyrics-tools')).opacity === (document.querySelector('.lyrics-tools').matches(':hover, :focus-within') ? '1' : '0'));
     assert.equal(await page.locator('.lyrics-tools').evaluate(e=>getComputedStyle(e).opacity),'0');
-    await page.locator('.lyrics-tools').hover();await page.waitForTimeout(220);
+    await page.locator('.lyrics-tools').hover();await page.waitForFunction(() => getComputedStyle(document.querySelector('.lyrics-tools')).opacity === '1');
     assert.equal(await page.locator('.lyrics-tools').evaluate(e=>getComputedStyle(e).opacity),'1');
-    await page.locator('.lyrics-tools button').focus();await page.mouse.move(590,290);await page.waitForTimeout(550);
+    await page.locator('.lyrics-tools button').focus();await page.mouse.move(590,290);await page.waitForFunction(() => getComputedStyle(document.querySelector('.lyrics-tools')).opacity === (document.querySelector('.lyrics-tools').matches(':hover, :focus-within') ? '1' : '0'));
     assert.equal(await page.locator('.lyrics-tools').evaluate(e=>getComputedStyle(e).opacity),'1','keyboard focus keeps controls visible');
-    await page.locator('.lyrics-tools button').blur();await page.waitForTimeout(550);
+    await page.locator('.lyrics-tools button').blur();await page.waitForFunction(() => getComputedStyle(document.querySelector('.lyrics-tools')).opacity === (document.querySelector('.lyrics-tools').matches(':hover, :focus-within') ? '1' : '0'));
     assert.equal(await page.locator('.lyrics-tools').evaluate(e=>getComputedStyle(e).opacity),'0');
     await page.emulateMedia({reducedMotion:'reduce'});
     assert.equal(await page.locator('.lyrics-tools').evaluate(e=>getComputedStyle(e).transitionDuration),'0s');
