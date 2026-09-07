@@ -2,7 +2,29 @@
 
 ## Unreleased
 
+### Changed
+- Restored album accents to selected tabs/filter chips, current-track titles, focus rings and relevant hover states, retaining contrast-aware text and icon colors.
+- Jam and lyrics controls use artwork-tinted glass, accent primary actions, hover/focus feedback and reduced-motion support. Lyrics controls share a compact floating toolbar.
+- Removed the topbar lyrics toggle; the player button and F2 remain available.
+
+### Added
+- Inline, collapsible Jam above Friends: participants, host labels, copy invite link, host removal/end and guest leave controls, with inline confirmation and failure feedback. Devices opens the same section.
+- Lyrics button on the player, shared main/miniplayer lyrics engine, source selection, retry, per-track timing/reset and manual-reading/follow controls.
+- Persistent sidebar and miniplayer choices, global preferred lyrics provider and bounded per-track offsets.
+- Focus mode via player button/F3 with playback controls, Escape and route/focus restoration.
+- Synchronized artwork/palette crossfades, stale transition cancellation and reduced-motion support.
+- Resize both sidebars by dragging their inner edges, without visible handles or extra controls. Player width persists and supports keyboard adjustment and reset.
+
 ### Fixed
+- Mix key badges retain their native key colors with readable notation. Lyrics controls auto-hide until hover or keyboard focus.
+- Main and miniplayer transport controls share the album-accent styling used by Jam.
+- Keyboard focus trapping/restoration in help and palette, accessible sliders/tabs and keyboard row/context-menu actions.
+- Sidebar loading/error/retry states preserve newer and stale usable results; device transfer keeps the confirmed output while connecting and exposes failures.
+- Shared lyric requests deduplicate across views, ignore stale responses and bound provider waits; paused/hidden lyrics and paused player progress stop continuous animation.
+- Miniplayer lyrics scroll within their pane and retain compact controls at small window sizes.
+- Primary icons, selected menus, lyrics accents and secondary text stay readable over artwork; sticky headers occlude scrolling rows.
+- Kept Spotify’s native listening-activity control intact.
+- Native toast and device-picker portals are no longer globally hidden.
 - Local deployment preserves unrelated Spicetify extensions and records Aurora-owned extension names for future cleanup.
 - Older command-palette requests no longer overwrite newer results or repopulate a cleared or reopened palette.
 - Devices repopulate after sidebar remounts; device renames and queue section changes refresh even when item identities stay the same.
@@ -10,6 +32,9 @@
 - Lyrics requests cannot overwrite a replacement slot or restart tracking against a detached view.
 
 ### Tests
+- Added inline Jam session/race/confirmation/clipboard fixtures, dialog/slider/tab keyboard checks, device transfer failure/refresh race tests, lyrics timing/follow/timeout regressions and crossfade/reduced-motion checks.
+- Rendered miniplayer lyrics containment at three window sizes alongside the 28 palette/control combinations.
+- Added palette contrast, rendered control-state, panel resizing/persistence/cancellation, topbar remount and missing-artwork regressions.
 - Added coverage for search races and actions, deployment ownership, sidebar lifecycle, recents pagination, lyrics providers and seeking, and miniplayer lifecycle and theme synchronization.
 
 ## v0.1.8 — 2026-04-21

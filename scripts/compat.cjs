@@ -59,6 +59,24 @@ const fs = require("node:fs");
           patch: "theme/user.css (.crp-player grid rows)",
         });
       }
+      // Inspect live key cells independently of Spotify's generated class names.
+      const keyHeader = [...document.querySelectorAll('[role="columnheader"]')].find(e => e.textContent.trim() === 'Key');
+      const keyColumn = keyHeader?.getAttribute('aria-colindex');
+      const cells = keyColumn ? [...document.querySelectorAll(`[role="gridcell"][aria-colindex="${keyColumn}"]`)] : [];
+      const badges = [...document.querySelectorAll('.mOhp6uUOOQY4YFdW,[data-testid="bpm-key-metadata"] div[style*="background-color"]'), ...cells.flatMap(e => [...e.querySelectorAll('div[style*="background-color"]')])];
+      const parse = value => {
+        const n = value.match(/[\d.]+/g)?.map(Number) || [];
+        return {rgb:n.slice(0,3),alpha:n[3] ?? 1};
+      };
+      const luminance = rgb => rgb.map(v => {v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;}).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+      const readable = badges.every(b => {
+        if (!b.firstElementChild) return false;
+        const ink = parse(getComputedStyle(b.firstElementChild).color), fill = parse(getComputedStyle(b).backgroundColor);
+        if (ink.rgb.length!==3 || fill.rgb.length!==3 || ink.alpha<1 || fill.alpha<1) return false;
+        const a=luminance(ink.rgb),z=luminance(fill.rgb);
+        return (Math.max(a,z)+.05)/(Math.min(a,z)+.05)>=4.5;
+      });
+      checks.push({name:'Mix key badge structure and contrast',status:badges.length?(readable?'pass':'fail'):cells.some(e=>e.textContent.trim())?'fail':'not-observed',patch:'theme/user.css (Mix key badge foreground; open a populated Mix view)'});
       const sp = globalThis.Spicetify;
       if (!sp)
         checks.push({

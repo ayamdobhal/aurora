@@ -10,10 +10,13 @@ A [Spicetify](https://spicetify.app) theme + extension bundle. Glassy translucen
 
 ## Features
 
-- **Dynamic theming** — accent colors are extracted from the current album art and applied across the UI.
+- **Dynamic theming** — dominant album-art colors, contrast-aware controls and synchronized artwork/palette crossfades. Respects reduced motion.
 - **Glass UI** — translucent surfaces with backdrop blur, album art drifting behind everything.
-- **Custom right panel** — Queue, Recent, and Friends tabs with a full player (controls, seek, volume) docked up top. Queue rows are drag-reorderable.
-- **Lyrics view** — a 5-line focus view sourced from AMLL (word-level), lrclib, or Spotify, in that order. Click a line to seek.
+- **Custom right panel** — Queue, Recent, Friends and Devices with a full player. Both sidebar widths are adjustable from their invisible inner edges. Queue rows are drag-reorderable; sidebar selection persists.
+- **Lyrics view** — shared main/miniplayer lyrics from AMLL (word-level), lrclib and Spotify. Open from the player button or F2. Choose a source, retry, and save timing adjustments per track. Click a line to seek; manual scrolling pauses following until “Back to current line.”
+- **Inline Jam** — collapsible session view above Friends, with participants, invite-link copying and host/guest controls. Devices links to the same view. End/leave/remove actions ask for confirmation within the card. Availability follows the installed Spotify client/account.
+- **Focus mode** — player button or F3 opens lyrics with minimal chrome, playback controls and an explicit exit. Escape restores the previous view.
+- **Remembered setup** — sidebar, miniplayer tab/expansion, preferred lyrics source and up to 200 per-track timing offsets persist locally.
 - **Command palette** — `Cmd/Ctrl + K` opens a search modal backed by Spotify's GraphQL search.
 - **Keyboard shortcuts** — see `F1` in-app.
 
@@ -23,9 +26,10 @@ A [Spicetify](https://spicetify.app) theme + extension bundle. Glassy translucen
 | --- | --- |
 | `F1` | Help |
 | `F2` | Toggle lyrics view |
+| `F3` | Toggle focus mode; Escape exits |
 | `F8` (Windows) | Restore/hide native window title bar |
 | `Cmd/Ctrl + K` | Command palette |
-| `Cmd/Ctrl + 1/2/3` | Switch right-panel tab |
+| `Cmd/Ctrl + 1/2/3/4` | Switch right-panel tab |
 | `Cmd/Ctrl + Shift + A` | Jump to artist of current track |
 | `Cmd/Ctrl + Shift + B` | Jump to album of current track |
 | `[` / `]` | Nudge lyrics timing ±50ms |
@@ -120,6 +124,22 @@ flake.nix         Nix dev shell
 
 ## Regression checks
 
+Drag the inner edge of either sidebar to resize it. Spotify remembers the
+library width; Aurora remembers the player width and fits it to the available
+window space. No extra controls are added. The player edge also supports arrow
+keys when focused and double-click to reset its width.
+
+Artwork accents use separate fill and readable foreground colors. Content
+surfaces, selected menus and sticky headers retain contrast over bright covers.
+The lyrics toggle sits beside Spotify's native listening-activity button.
+
+`npm run test:visual` checks sanitized control fixtures in Chromium across seven
+palettes and rest/hover/pressed/keyboard-focus states. Install a Playwright
+Chromium browser with `npx playwright install chromium`, or set `CHROME_PATH`
+to an installed Chrome executable. The check also covers sticky surfaces,
+selected chips and native feedback visibility; its screenshot goes to
+`reports/phase-1/control-fixture.png`.
+
 Use Node 22. Install pinned tooling with `npm ci`, then run `npm test` and
 `npm run build`. CI runs these on pushes and pull requests, and releases also
 require them to pass. The tests exercise the production resolvers against
@@ -170,3 +190,5 @@ It applies at startup and after debounced resize/fullscreen events, without a
 continuous polling loop. macOS/Linux are unchanged. If the endpoint rejects the
 request, Aurora leaves the native controls visible. Native Windows behavior
 requires verification on the installed Spotify build.
+
+The visual suite also checks Mix key notation against native badge colors (including regenerated class names), lyrics toolbar hover/focus auto-hide and reduced motion, and main/PiP play-button accent contrast. For Spotify-update checks, open a populated playlist **Mix** view before running `npm run compat`: the read-only probe checks key badge structure and contrast. `not-observed` means no populated key badge was available to inspect.

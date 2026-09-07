@@ -5,6 +5,7 @@
     "check": "tsc --noEmit",
     "build": "bash scripts/build.sh",
     "test": "node --test tests/*.test.cjs",
+    "test:visual": "node scripts/test-theme-visual.cjs",
     "compat": "node scripts/compat.cjs"
   },
   "devDependencies": {
