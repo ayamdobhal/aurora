@@ -1,4 +1,6 @@
+import { setupFocusMode } from "./lib/focus-mode";
 import { setupWindowsTitlebar } from "./lib/window-chrome";
+import { setupPanelResizing } from "./lib/panel-resize";
 import {
   getMainView,
   getMainViewBanner,
@@ -14,6 +16,17 @@ import {
   }
 
   setupWindowsTitlebar();
+  setupPanelResizing();
+  setupFocusMode();
+
+  function labelPanelResizers(): void {
+    for (const [side, label] of [["nav-bar", "Resize library panel"], ["right-sidebar", "Resize player panel"]]) {
+      const handle = document.querySelector(`.Root__${side} > .LayoutResizer__resize-bar`);
+      const input = handle?.querySelector("input");
+      if (input?.getAttribute("aria-label") !== label) input?.setAttribute("aria-label", label);
+    }
+  }
+  labelPanelResizers();
 
   function syncPlaybackState(): void {
     const isPaused = Spicetify.Player.data?.isPaused ?? true;
@@ -83,6 +96,7 @@ import {
   // Single body-subtree observer drives both the lyrics-route class and the
   // video-mode watchdog — one rAF-throttled pass per frame instead of two.
   onSubtreeMutation(document.body, () => {
+    labelPanelResizers();
     updateLyricsRoute();
     forceAudioMode();
   });
