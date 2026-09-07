@@ -91,6 +91,12 @@ just check      # tsc --noEmit
 just restore    # revert Spotify to vanilla
 ```
 
+Local deployment records Aurora's extension names in
+`Themes/aurora/.aurora-extensions`. Later deployments prune only names from
+that record; the first deployment after upgrading preserves existing entries
+whose ownership is unknown. `SPICETIFY_DIR` can override the default deployment
+directory (`~/.config/spicetify`).
+
 ## Layout
 
 ```
@@ -119,6 +125,10 @@ Use Node 22. Install pinned tooling with `npm ci`, then run `npm test` and
 require them to pass. The tests exercise the production resolvers against
 synthetic DOMs: fallback anchors, hidden-sidebar placement, lyrics scoping,
 fiber cycles, webpack fallback, late mounting, reinjection and observer teardown.
+They also exercise the bundled search, right-panel, lyrics and miniplayer
+extensions with mocked Spotify APIs, including out-of-order responses, tab
+restoration, dynamic theme synchronization and recents pagination. Deployment
+fixtures check that cleanup preserves unrelated extensions.
 These fixtures test our behavior; they cannot discover future Spotify changes.
 
 For the installed Spotify build, launch its desktop executable with

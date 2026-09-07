@@ -12,6 +12,7 @@
 // Fallback: if the host Electron build is too old for documentPIP, we
 // click Spotify's native miniplayer button instead of showing nothing.
 
+import { setTextIfChanged } from "./lib/dom";
 import { getMiniplayerButton } from "./lib/resolvers";
 
 (async function miniplayer() {
@@ -75,6 +76,8 @@ import { getMiniplayerButton } from "./lib/resolvers";
   };
 
   let pipWin: Window | null = null;
+  let opening = false;
+  let themeObserver: MutationObserver | null = null;
   let pipRoot: HTMLElement | null = null;
   let rafId: number | null = null;
   let seeking = false;
@@ -102,7 +105,16 @@ import { getMiniplayerButton } from "./lib/resolvers";
       return;
     }
 
-    pipWin = await docPiP.requestWindow({ width: 360, height: 560 });
+    if (opening || isOpen()) return;
+    opening = true;
+    try {
+      pipWin = await docPiP.requestWindow({ width: 360, height: 560 });
+    } catch {
+      getMiniplayerButton()?.click();
+      return;
+    } finally {
+      opening = false;
+    }
 
     // Clone relevant <link rel="stylesheet"> and every <style> element from
     // the parent into the PIP head. This pulls in our user.css (theme +
@@ -115,6 +127,24 @@ import { getMiniplayerButton } from "./lib/resolvers";
       pipWin.document.head.appendChild(el.cloneNode(true));
     }
 
+    // Dynamic theme values are inline on the parent root, not in stylesheets.
+    const syncTheme = (): void => {
+      if (!pipWin) return;
+      const source = document.documentElement.style;
+      const target = pipWin.document.documentElement.style;
+      for (const name of Array.from(target)) {
+        if (name.startsWith("--") && !source.getPropertyValue(name))
+          target.removeProperty(name);
+      }
+      for (const name of Array.from(source)) {
+        if (name.startsWith("--"))
+          target.setProperty(name, source.getPropertyValue(name), source.getPropertyPriority(name));
+      }
+      pipWin.document.body.classList.toggle("playback-paused", Spicetify.Player.data?.isPaused ?? true);
+    };
+    themeObserver = new MutationObserver(syncTheme);
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["style"] });
+
     pipWin.document.documentElement.lang = "en";
     pipWin.document.title = "Miniplayer";
     // Give the PIP document body our theme's base (dark bg + blur) by
@@ -124,6 +154,7 @@ import { getMiniplayerButton } from "./lib/resolvers";
     pipWin.document.body.className = "encore-dark-theme mp-pip-body";
     pipWin.document.body.style.margin = "0";
     pipWin.document.body.style.background = "rgba(20, 20, 20, 0.85)";
+    syncTheme();
     pipWin.document.body.innerHTML = buildHtml();
     pipRoot = pipWin.document.body.querySelector<HTMLElement>("#mini-player");
 
@@ -131,8 +162,7 @@ import { getMiniplayerButton } from "./lib/resolvers";
       wireControls(pipRoot);
       wireTabs(pipRoot);
       syncAll();
-      if (activeTab === "lyrics") refreshLyrics();
-      else refreshQueue();
+      setActiveTab(activeTab);
       startProgressLoop();
     }
 
@@ -144,6 +174,9 @@ import { getMiniplayerButton } from "./lib/resolvers";
 
   function onPipClosed(): void {
     stopProgressLoop();
+    themeObserver?.disconnect();
+    themeObserver = null;
+    seeking = false;
     pipWin = null;
     pipRoot = null;
     lastRenderedLyricsUri = null;
@@ -324,6 +357,7 @@ import { getMiniplayerButton } from "./lib/resolvers";
     if (!btn) return;
     const paused = Spicetify.Player.data?.isPaused ?? true;
     btn.innerHTML = icon(paused ? "play" : "pause");
+    pipWin?.document.body.classList.toggle("playback-paused", paused);
   }
 
   function getAccurateProgress(): number {
@@ -345,8 +379,8 @@ import { getMiniplayerButton } from "./lib/resolvers";
     const total = pipRoot.querySelector<HTMLElement>(".mp-time-total");
     if (fill) fill.style.width = `${pct * 100}%`;
     if (thumb) thumb.style.left = `${pct * 100}%`;
-    if (elapsed) elapsed.textContent = fmtTime(posMs);
-    if (total) total.textContent = fmtTime(durMs);
+    setTextIfChanged(elapsed, fmtTime(posMs));
+    setTextIfChanged(total, fmtTime(durMs));
   }
 
   function syncSeek(): void {
@@ -454,7 +488,7 @@ import { getMiniplayerButton } from "./lib/resolvers";
     const duration =
       track.duration?.milliseconds || parseInt(meta.duration ?? "0", 10) || 0;
     const lyrics = await fetchLyrics(track.uri, name, artist, album, duration);
-    if (Spicetify.Player.data?.item?.uri !== track.uri) return;
+    if (!pipRoot?.contains(pane) || Spicetify.Player.data?.item?.uri !== track.uri) return;
     lastRenderedLyricsUri = track.uri;
     lastActiveLineIdx = -1;
     if (lyrics.type === "none") {
@@ -554,6 +588,7 @@ import { getMiniplayerButton } from "./lib/resolvers";
     const pane = pipRoot.querySelector<HTMLElement>('.mp-tab-pane[data-pane="queue"]');
     if (!pane) return;
     const list = await fetchQueue();
+    if (!pipRoot?.contains(pane)) return;
     if (list.length === 0) {
       pane.innerHTML = '<div class="mp-empty">Queue is empty</div>';
       return;

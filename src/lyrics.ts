@@ -28,6 +28,7 @@ import { onSubtreeMutation, waitFor } from "./lib/resolvers";
 
   const cache = new Map<string, Lyrics>();
   let currentUri: string | null = null;
+  let renderGeneration = 0;
   let progressTimer: number | null = null;
   let activeIdx = -1;
 
@@ -414,6 +415,8 @@ import { onSubtreeMutation, waitFor } from "./lib/resolvers";
 
     const track = Spicetify.Player.data?.item;
     if (!track) {
+      currentUri = null;
+      renderGeneration++;
       slot.innerHTML = "";
       stopProgressTracking();
       return;
@@ -421,12 +424,13 @@ import { onSubtreeMutation, waitFor } from "./lib/resolvers";
 
     if (track.uri === currentUri) return;
     currentUri = track.uri;
+    const generation = ++renderGeneration;
 
     stopProgressTracking();
     slot.innerHTML = '<div class="lyrics-loading">Loading…</div>';
 
     const lyrics = await getLyrics(track);
-    if (track.uri !== currentUri) return;
+    if (generation !== renderGeneration || document.getElementById("lyrics-slot") !== slot) return;
 
     if (lyrics.type === "synced") {
       slot.innerHTML = renderSynced(lyrics.lines);

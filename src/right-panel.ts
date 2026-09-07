@@ -935,7 +935,7 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
   let lastQueueKey = "";
   async function refreshQueue(force = false): Promise<void> {
     const list = await fetchQueue();
-    const key = list.map((t) => t.uid || t.uri).join("|");
+    const key = JSON.stringify([userQueuedCount, list]);
     // Always sync the user-queued count — even when the visible list
     // hasn't changed, the user-queued split may have (e.g. they added or
     // removed a single already-present track).
@@ -1854,7 +1854,7 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
   let lastDevicesKey = "";
   async function refreshDevices(force = false): Promise<void> {
     const list = await fetchDevices();
-    const key = list.map((d) => `${d.id}:${d.isActive ? 1 : 0}`).join("|");
+    const key = JSON.stringify(list);
     if (!force && key === lastDevicesKey) return;
     lastDevicesKey = key;
     renderDevices(list);
@@ -2115,6 +2115,7 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
     // Re-populate tabs after re-inject (React may wipe our subtree).
     lastQueueKey = "";
     lastFriendsKey = "";
+    lastDevicesKey = "";
     recentItems = [];
     recentRawConsumed = 0;
     recentExhausted = false;
@@ -2122,6 +2123,7 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
     refreshQueue(true);
     refreshRecent(true);
     refreshFriends(true);
+    refreshDevices(true);
   }
 
   // React may wipe the sidebar tree at any time. maintainInjection watches

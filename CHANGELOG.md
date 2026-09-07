@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Local deployment preserves unrelated Spicetify extensions and records Aurora-owned extension names for future cleanup.
+- Older command-palette requests no longer overwrite newer results or repopulate a cleared or reopened palette.
+- Devices repopulate after sidebar remounts; device renames and queue section changes refresh even when item identities stay the same.
+- The miniplayer restores its selected tab, synchronizes dynamic theme variables, handles rejected or overlapping window requests, and ignores responses for closed windows.
+- Lyrics requests cannot overwrite a replacement slot or restart tracking against a detached view.
+
+### Tests
+- Added coverage for search races and actions, deployment ownership, sidebar lifecycle, recents pagination, lyrics providers and seeking, and miniplayer lifecycle and theme synchronization.
+
 ## v0.1.8 — 2026-04-21
 
 ### Fixed

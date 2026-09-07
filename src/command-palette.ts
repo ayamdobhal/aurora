@@ -22,6 +22,7 @@
   let results: SearchResult[] = [];
   let selectedIdx = 0;
   let searchTimer: number | null = null;
+  let searchGeneration = 0;
   const queryCache = new Map<string, SearchResult[]>();
 
   function escapeHtml(s: string): string {
@@ -61,6 +62,7 @@
 
   function show(): void {
     if (!paletteEl || !inputEl) return;
+    invalidateSearch();
     paletteEl.classList.remove("hidden");
     inputEl.value = "";
     inputEl.focus();
@@ -69,7 +71,14 @@
     renderResults();
   }
 
+  function invalidateSearch(): number {
+    if (searchTimer !== null) window.clearTimeout(searchTimer);
+    searchTimer = null;
+    return ++searchGeneration;
+  }
+
   function hide(): void {
+    invalidateSearch();
     paletteEl?.classList.add("hidden");
   }
 
@@ -81,13 +90,12 @@
 
   function onInput(e: Event): void {
     const query = (e.target as HTMLInputElement).value.trim();
-    if (searchTimer !== null) window.clearTimeout(searchTimer);
-    if (!query) {
-      results = [];
-      renderResults();
-      return;
-    }
-    searchTimer = window.setTimeout(() => search(query), 250);
+    const generation = invalidateSearch();
+    results = [];
+    selectedIdx = 0;
+    renderResults();
+    if (!query) return;
+    searchTimer = window.setTimeout(() => search(query, generation), 250);
   }
 
   function imgFromUri(uri: string | undefined): string {
@@ -105,7 +113,7 @@
     return imgFromUri(small || "");
   }
 
-  async function search(query: string): Promise<void> {
+  async function search(query: string, generation: number): Promise<void> {
     const cached = queryCache.get(query);
     if (cached) {
       results = cached;
@@ -187,11 +195,13 @@
       }
 
       queryCache.set(query, items);
+      if (queryCache.size > 128) queryCache.delete(queryCache.keys().next().value!);
+      if (generation !== searchGeneration) return;
       results = items;
       selectedIdx = 0;
       renderResults();
     } catch {
-      // search fails silently; palette stays on last result set
+      // Leave the current query empty on failure.
     }
   }
 
