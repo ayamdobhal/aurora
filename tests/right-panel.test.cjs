@@ -91,3 +91,29 @@ test("recent pagination counts tracks, skips episodes, and preserves scroll posi
   );
   assert.equal(pane.scrollTop, 100);
 });
+
+test('failed device transfer retains confirmed output and survives polling while pending', async (t) => {
+  const f=await setup(t);
+  const {deferred}=require('./helpers/runtime.cjs');const d=deferred();
+  f.state.devices.push({id:'remote',name:'Speaker',isActive:false,type:'speaker'});
+  f.w.Spicetify.Platform.ConnectAPI.transferPlayback=()=>d.promise;
+  await f.refresh(5000);
+  const row=f.w.document.querySelector('[data-device-id="remote"]');row.click();
+  assert.match(row.textContent,/Connecting/);
+  await f.refresh(5000);assert.equal(f.w.document.querySelector('[data-device-id="remote"]'),row);
+  d.resolve(Promise.reject(Error('offline')));await settle();
+  assert.match(row.textContent,/Connection failed/);
+  assert.equal(f.w.document.querySelector('.crp-device-active').dataset.deviceId,'local');
+  assert.match(f.w.document.querySelector('.crp-device-active').textContent,/Paused/);
+});
+
+test('out-of-order device refresh cannot replace a newer result; failure retains rows with retry', async (t) => {
+ const f=await setup(t);const {deferred}=require('./helpers/runtime.cjs');const d=deferred();
+ let calls=0;f.w.Spicetify.Platform.ConnectAPI.getDevices=()=>++calls===1?d.promise:Promise.resolve([{id:'new',name:'New output'}]);
+ const poll=f.intervals.find(i=>i.delay===5000);poll.fn();poll.fn();await settle();
+ d.resolve([{id:'old',name:'Old output'}]);await settle();
+ assert.equal(f.w.document.querySelector('.crp-device-row').dataset.deviceId,'new');
+ f.w.Spicetify.Platform.ConnectAPI.getDevices=async()=>{throw Error('offline')};await f.refresh(5000);
+ assert.equal(f.w.document.querySelector('.crp-device-row').dataset.deviceId,'new');
+ assert.match(f.w.document.querySelector('[data-pane="devices"] .crp-status').textContent,/Refresh failed.*Retry/);
+});

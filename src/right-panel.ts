@@ -1,3 +1,6 @@
+import { preferences, savePreferences } from "./lib/preferences";
+import { syncTabs, wireSlider } from "./lib/accessibility";
+import { setupJam } from "./lib/jam";
 import { setTextIfChanged } from "./lib/dom";
 import { getRightSidebar, maintainInjection } from "./lib/resolvers";
 
@@ -89,7 +92,7 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
   }
 
   let panelEl: HTMLElement | null = null;
-  let activeTab: TabId = "queue";
+  let activeTab: TabId = preferences().sidebar;
   let rafId: number | null = null;
   let seeking = false;
 
@@ -106,6 +109,8 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
             <a class="crp-track-artist crp-link"></a>
             <a class="crp-track-album crp-link"></a>
           </div>
+          <button class="crp-btn crp-lyrics" aria-label="Toggle lyrics" title="Lyrics (F2)"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v2H2zm0 5h9v2H2zm0 5h6v2H2z"/></svg></button>
+          <button class="crp-btn crp-focus" aria-label="Focus mode" title="Focus mode (F3)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor"><path d="M1 6V1h5m4 0h5v5M1 10v5h5m4 0h5v-5"/></svg></button>
           <button class="crp-btn crp-miniplayer" title="Open miniplayer">${icon("picture-in-picture")}</button>
           <button class="crp-btn crp-like" title="Save to Liked Songs">${icon("heart")}</button>
         </div>
@@ -208,7 +213,10 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
         document.dispatchEvent(new CustomEvent("toggle-miniplayer"));
       });
 
+    root.querySelector(".crp-lyrics")?.addEventListener("click", () => document.dispatchEvent(new CustomEvent("toggle-lyrics")));
+    root.querySelector(".crp-focus")?.addEventListener("click", () => document.dispatchEvent(new CustomEvent("toggle-focus")));
     const seekBar = root.querySelector<HTMLElement>(".crp-seek-bar");
+    wireSlider(seekBar, "Playback position", () => Spicetify.Player.getProgress(), () => Spicetify.Player.getDuration(), n => {Spicetify.Player.seek(n); updateSeekUI(n, Spicetify.Player.getDuration());}, 5000);
     if (seekBar) {
       const seekFromEvent = (e: MouseEvent): number => {
         const rect = seekBar.getBoundingClientRect();
@@ -238,6 +246,7 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
     }
 
     const volBar = root.querySelector<HTMLElement>(".crp-vol-bar");
+    wireSlider(volBar, "Volume", () => Spicetify.Player.getVolume()*100, () => 100, n => {Spicetify.Player.setVolume(n/100); updateVolumeUI(n/100);}, 5);
     if (volBar) {
       const volFromEvent = (e: MouseEvent): number => {
         const rect = volBar.getBoundingClientRect();
@@ -274,6 +283,28 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
       ?.addEventListener("click", clearQueue);
   }
 
+  const revisions: Record<TabId, number> = {queue:0,recent:0,friends:0,devices:0};
+  function setPanelStatus(tab: TabId, text: string, retry = false): void {
+    const pane = panelEl?.querySelector<HTMLElement>(`.crp-tab-pane[data-pane="${tab}"]`);
+    if (!pane) return;
+    let status = pane.querySelector<HTMLElement>('.crp-status');
+    if (!status) {status = document.createElement('div'); status.className = 'crp-status'; status.setAttribute('role','status'); pane.prepend(status);}
+    status.hidden = !text; status.textContent = text;
+    if (retry) {const button = document.createElement('button');button.textContent = 'Retry';button.onclick=()=>void refreshers[tab](true);status.appendChild(button);}
+  }
+  async function withStatus(tab: TabId, load: () => Promise<void>): Promise<void> {
+    const pane = panelEl?.querySelector(`.crp-${tab === 'recent' ? 'recent' : tab}-list`);
+    setPanelStatus(tab, pane?.children.length ? '' : 'Loading…');
+    const revision = revisions[tab]+1, panel = panelEl;
+    try {await load(); if (revision === revisions[tab] && panel === panelEl) setPanelStatus(tab, '');}
+    catch (e) {if (revision === revisions[tab] && panel === panelEl) setPanelStatus(tab, e instanceof Error ? e.message : 'Refresh failed', true);}
+  }
+  const refreshQueue = (force = false) => withStatus('queue', () => loadQueue(force));
+  const refreshRecent = (reset = false) => withStatus('recent', () => loadRecent(reset));
+  const refreshFriends = (force = false) => withStatus('friends', () => loadFriends(force));
+  const refreshDevices = (force = false) => withStatus('devices', () => loadDevices(force));
+  const refreshers = {queue:refreshQueue,recent:refreshRecent,friends:refreshFriends,devices:refreshDevices};
+
   const TAB_ORDER: Record<TabId, number> = {
     queue: 0,
     recent: 1,
@@ -283,7 +314,9 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
   let lastTabIdx = 0;
 
   function setActiveTab(id: TabId): void {
-    if (!panelEl) return;
+    if (!panelEl || !(id in TAB_ORDER)) return;
+    savePreferences({sidebar: id});
+    syncTabs(panelEl, "crp", id);
     const prevIdx = lastTabIdx;
     const newIdx = TAB_ORDER[id];
     activeTab = id;
@@ -452,6 +485,15 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
     );
   }
 
+  let feedbackTimer: number | null = null;
+  function feedback(message: string): void {
+    let toast = document.querySelector<HTMLElement>('#aurora-action-status');
+    if (!toast) { toast = document.createElement('div'); toast.id = 'aurora-action-status'; toast.className = 'shortcut-toast'; toast.setAttribute('role', 'status'); document.body.appendChild(toast); }
+    toast.textContent = message; toast.classList.add('visible');
+    if (feedbackTimer !== null) clearTimeout(feedbackTimer);
+    feedbackTimer = window.setTimeout(() => toast?.classList.remove('visible'), 3500);
+  }
+
   async function toggleLike(): Promise<void> {
     const uri = Spicetify.Player.data?.item?.uri;
     if (!uri || !uri.startsWith("spotify:track:")) return;
@@ -462,7 +504,7 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
       if (liked) await api.remove?.({ uris: [uri] });
       else await api.add?.({ uris: [uri] });
     } catch {
-      // failure just leaves the icon stale until next sync
+      feedback("Couldn’t update Liked Songs. Try again.");
     }
     await syncLikeState();
   }
@@ -518,6 +560,7 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
     const fill = panelEl.querySelector<HTMLElement>(".crp-vol-fill");
     const thumb = panelEl.querySelector<HTMLElement>(".crp-vol-thumb");
     const pct = panelEl.querySelector<HTMLElement>(".crp-vol-pct");
+    panelEl.querySelector(".crp-vol-bar")?.setAttribute("aria-valuenow", String(Math.round(v*100)));
     const pctStr = `${Math.round(v * 100)}%`;
     if (fill) fill.style.width = pctStr;
     if (thumb) thumb.style.left = pctStr;
@@ -530,6 +573,8 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
     const thumb = panelEl.querySelector<HTMLElement>(".crp-seek-thumb");
     const el = panelEl.querySelector<HTMLElement>(".crp-time-elapsed");
     const tot = panelEl.querySelector<HTMLElement>(".crp-time-total");
+    panelEl.querySelector(".crp-seek-bar")?.setAttribute("aria-valuenow", String(Math.round(progressMs)));
+    panelEl.querySelector(".crp-seek-bar")?.setAttribute("aria-valuemax", String(durationMs));
     const pct = durationMs > 0 ? Math.max(0, Math.min(1, progressMs / durationMs)) : 0;
     if (fill) fill.style.width = `${pct * 100}%`;
     if (thumb) thumb.style.left = `${pct * 100}%`;
@@ -550,13 +595,14 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
   function startProgressLoop(): void {
     if (rafId != null) cancelAnimationFrame(rafId);
     const tick = (): void => {
+      rafId = null;
       if (!seeking) {
         const dur = Spicetify.Player.getDuration();
         updateSeekUI(getAccurateProgress(), dur);
       }
-      rafId = requestAnimationFrame(tick);
+      if (!Spicetify.Player.data?.isPaused && document.visibilityState !== 'hidden') rafId = requestAnimationFrame(tick);
     };
-    rafId = requestAnimationFrame(tick);
+    tick();
   }
 
   // ==================== Queue tab ====================
@@ -619,6 +665,7 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
     const api = platform?.PlayerAPI;
     let raw: unknown[] = [];
     let queued = 0;
+    let available = !!api?.getQueue, failed = false;
     if (api?.getQueue) {
       try {
         const s = (await api.getQueue()) as Record<string, unknown>;
@@ -639,7 +686,7 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
           raw = (s.queue as Record<string, unknown>).nextTracks as unknown[];
         }
       } catch {
-        // ignore
+        failed = true;
       }
     }
     if (raw.length === 0) {
@@ -649,9 +696,12 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
           _queue?: { nextTracks?: unknown[] };
         };
       }).Queue;
+      if (g) available = true;
       const fallback = g?.nextTracks || g?._queue?.nextTracks || [];
       if (Array.isArray(fallback)) raw = fallback;
     }
+    if (!available) throw Error("Queue unavailable on this Spotify version");
+    if (failed && !raw.length) throw Error("Couldn’t refresh queue");
     userQueuedCount = queued;
     const out: QueueTrack[] = [];
     for (const item of raw) {
@@ -668,7 +718,7 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
     const album = t.album ? linkHtml(t.albumUri, t.album) : "";
     const sub = [artist, album].filter(Boolean).join(" · ");
     return `
-      <div class="crp-list-row crp-queue-row" data-idx="${i}" draggable="true">
+      <div tabindex="0" class="crp-list-row crp-queue-row" data-idx="${i}" draggable="true">
         <div class="crp-drag-handle" aria-hidden="true">&#x2261;</div>
         <div class="crp-list-art" style="background-image: url('${t.art}');"></div>
         <div class="crp-list-info">
@@ -902,7 +952,7 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
       await api.removeFromQueue([{ uri: item.uri, uid: item.uid }]);
       await refreshQueue(true);
     } catch {
-      // swallow — row just stays in place; next refresh corrects state
+      feedback("Couldn’t remove this track. Try again.");
     }
   }
 
@@ -928,13 +978,15 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
       }
       await refreshQueue(true);
     } catch {
-      // swallow — next refresh realigns the visible order
+      feedback("Couldn’t reorder the queue. Try again.");
     }
   }
 
   let lastQueueKey = "";
-  async function refreshQueue(force = false): Promise<void> {
+  async function loadQueue(force = false): Promise<void> {
+    const request = ++revisions.queue; const targetPanel = panelEl;
     const list = await fetchQueue();
+    if (request !== revisions.queue || panelEl !== targetPanel) return;
     const key = JSON.stringify([userQueuedCount, list]);
     // Always sync the user-queued count — even when the visible list
     // hasn't changed, the user-queued split may have (e.g. they added or
@@ -1151,20 +1203,17 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
     const api = apiOf("RecentsAPI");
     const fn = api?.getContents;
     if (typeof fn !== "function") {
-      logR("fetchRecentsRaw: RecentsAPI.getContents unavailable");
-      return [];
+      throw Error("Unavailable on this Spotify version");
     }
     try {
       const res = await (fn as () => Promise<unknown>).call(api);
       const arr = pickArray(res);
       if (!arr) {
-        logR("fetchRecentsRaw: pickArray empty", res);
-        return [];
+        throw Error("Recent history response unavailable");
       }
       return arr;
     } catch (err) {
-      logR("fetchRecentsRaw error", err);
-      return [];
+      throw err;
     }
   }
 
@@ -1278,7 +1327,7 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
         const aAttr = t.artistUri ? ` data-artist-uri="${escapeHtml(t.artistUri)}"` : "";
         const alAttr = t.albumUri ? ` data-album-uri="${escapeHtml(t.albumUri)}"` : "";
         return `
-        <div class="crp-list-row" data-idx="${i}" data-uri="${escapeHtml(t.uri)}"${aAttr}${alAttr}>
+        <div tabindex="0" class="crp-list-row" data-idx="${i}" data-uri="${escapeHtml(t.uri)}"${aAttr}${alAttr}>
           <div class="crp-list-art" style="background-image: url('${t.art}');"></div>
           <div class="crp-list-info">
             ${linkHtml(t.uri, t.name, "crp-list-name")}
@@ -1330,7 +1379,8 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
   let recentExhausted = false;
   let recentLoading = false;
 
-  async function refreshRecent(reset = false): Promise<void> {
+  async function loadRecent(reset = false): Promise<void> {
+    const request = ++revisions.recent; const targetPanel = panelEl;
     logR("refreshRecent called, reset =", reset, "; panelEl?", !!panelEl);
     if (!panelEl) return;
     if (reset) {
@@ -1339,6 +1389,7 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
       recentRawConsumed = 0;
     }
     const raw = await fetchRecentsRaw();
+    if (request !== revisions.recent || panelEl !== targetPanel) return;
     if (!panelEl) return;
     // Refresh the server-backed window of however many items we've already
     // loaded — so deep-scrolled users see their whole range stay fresh.
@@ -1399,6 +1450,8 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
         `loadMoreRecent: raw=${raw.length}, consumed=${recentRawConsumed}, now displaying=${recentItems.length}, exhausted=${recentExhausted}`,
       );
       renderRecentList();
+    } catch {
+      setPanelStatus("recent", "Couldn’t load more. Retry", true);
     } finally {
       recentLoading = false;
     }
@@ -1540,13 +1593,14 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
     }
     if (rawRes == null) {
       const hit = await probeAttempts(attempts);
-      if (!hit) return [];
+      if (!hit) throw Error(attempts.length ? "Refresh failed" : "Unavailable on this Spotify version");
       friendsWinner = { label: hit.hit, fn: hit.fn };
       rawRes = hit.raw;
     }
 
     const raw = pickArray(rawRes);
-    if (!raw || raw.length === 0) return [];
+    if (!raw) throw Error("Friend activity response unavailable");
+    if (raw.length === 0) return [];
 
     const out: FriendActivity[] = [];
     for (const entry of raw) {
@@ -1607,7 +1661,7 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
         const aAttr = f.artistUri ? ` data-artist-uri="${escapeHtml(f.artistUri)}"` : "";
         const alAttr = f.albumUri ? ` data-album-uri="${escapeHtml(f.albumUri)}"` : "";
         return `
-        <div class="crp-friend-row" data-idx="${i}" data-uri="${escapeHtml(f.trackUri)}"${aAttr}${alAttr}>
+        <div tabindex="0" class="crp-friend-row" data-idx="${i}" data-uri="${escapeHtml(f.trackUri)}"${aAttr}${alAttr}>
           <div class="crp-friend-avatar"${f.avatarUrl ? ` style="background-image: url('${f.avatarUrl}');"` : ""}>
             ${f.isPlaying ? '<span class="crp-friend-dot"></span>' : ""}
           </div>
@@ -1643,9 +1697,11 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
     });
   }
 
-  let lastFriendsKey = "";
-  async function refreshFriends(force = false): Promise<void> {
+  let lastFriendsKey: string | null = null;
+  async function loadFriends(force = false): Promise<void> {
+    const request = ++revisions.friends; const targetPanel = panelEl;
     const list = await fetchFriends();
+    if (request !== revisions.friends || panelEl !== targetPanel) return;
     const key = list
       .map((f) => `${f.userUri}:${f.trackUri}:${f.timestamp}`)
       .join("|");
@@ -1744,13 +1800,13 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
     }
     if (raw == null) {
       const hit = await probeAttempts(attempts);
-      if (!hit) return [];
+      if (!hit) throw Error(attempts.length ? "Refresh failed" : "Unavailable on this Spotify version");
       devicesWinner = { label: hit.hit, fn: hit.fn };
       raw = hit.raw;
     }
 
     const arr = pickDeviceArray(raw);
-    if (!arr) return [];
+    if (!arr) throw Error("Device response unavailable");
     const out: Device[] = [];
     for (const item of arr) {
       const d = normalizeDevice(item);
@@ -1780,6 +1836,7 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
         // try next candidate
       }
     }
+    throw Error("Couldn’t connect to this device");
   }
 
   function deviceIconName(type: string): string {
@@ -1799,13 +1856,13 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
             ? "Speaker"
             : "Device",
       d.isLocal ? "This device" : null,
-      d.isActive ? "Playing" : null,
+      d.isActive ? (Spicetify.Player.data?.isPaused ? "Paused" : "Playing") : null,
     ]
       .filter(Boolean)
       .join(" · ");
     const activeClass = d.isActive ? " crp-device-active" : "";
     return `
-      <div class="crp-list-row crp-device-row${activeClass}" data-device-id="${escapeHtml(d.id)}">
+      <div tabindex="0" class="crp-list-row crp-device-row${activeClass}" data-device-id="${escapeHtml(d.id)}">
         <div class="crp-device-icon">${icon(deviceIconName(d.type))}</div>
         <div class="crp-list-info">
           <span class="crp-list-name">${escapeHtml(d.name)}</span>
@@ -1833,6 +1890,7 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
     container.innerHTML = sorted.map(renderDeviceRow).join("");
   }
 
+  let transferPending = false;
   function wireDevicesDelegation(container: HTMLElement): void {
     container.addEventListener("click", (e) => {
       const row = (e.target as HTMLElement).closest<HTMLElement>(
@@ -1842,20 +1900,24 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
       const id = row.dataset.deviceId;
       if (!id) return;
       if (row.classList.contains("crp-device-active")) return;
-      // Optimistically mark clicked row active; a refresh tick will correct.
-      container
-        .querySelectorAll<HTMLElement>(".crp-device-row")
-        .forEach((r) => r.classList.remove("crp-device-active"));
-      row.classList.add("crp-device-active");
-      void transferPlayback(id).then(() => refreshDevices(true));
+      if (transferPending) return;
+      transferPending = true;
+      row.setAttribute('aria-busy','true');
+      const sub = row.querySelector('.crp-list-sub');
+      if (sub) sub.textContent = 'Connecting…';
+      void transferPlayback(id).then(() => {transferPending = false; return refreshDevices(true);}).catch(() => {
+        if (sub) sub.textContent = 'Connection failed — select to retry';
+      }).finally(() => {transferPending = false; row.removeAttribute('aria-busy');});
     });
   }
 
   let lastDevicesKey = "";
-  async function refreshDevices(force = false): Promise<void> {
+  async function loadDevices(force = false): Promise<void> {
+    const request = ++revisions.devices; const targetPanel = panelEl;
     const list = await fetchDevices();
+    if (request !== revisions.devices || panelEl !== targetPanel) return;
     const key = JSON.stringify(list);
-    if (!force && key === lastDevicesKey) return;
+    if (transferPending || (!force && key === lastDevicesKey)) return;
     lastDevicesKey = key;
     renderDevices(list);
   }
@@ -1873,11 +1935,13 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
   type CMEntry = CMItem | CMSep;
 
   let cmEl: HTMLElement | null = null;
+  let menuPrevious: HTMLElement | null = null;
 
   function closeContextMenu(): void {
     if (cmEl) {
       cmEl.remove();
       cmEl = null;
+      if (menuPrevious?.isConnected) menuPrevious.focus();
     }
     document.removeEventListener("mousedown", onCmDocMousedown, true);
     document.removeEventListener("keydown", onCmKeydown, true);
@@ -1890,19 +1954,25 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
   }
 
   function onCmKeydown(e: KeyboardEvent): void {
-    if (e.key === "Escape") closeContextMenu();
+    if (e.key === "Escape") {e.preventDefault(); closeContextMenu(); return;}
+    const items = Array.from(cmEl?.querySelectorAll<HTMLButtonElement>('button') ?? []);
+    const i = items.indexOf(document.activeElement as HTMLButtonElement);
+    const next = e.key === 'ArrowDown' ? (i+1)%items.length : e.key === 'ArrowUp' ? (i+items.length-1)%items.length : e.key === 'Home' ? 0 : e.key === 'End' ? items.length-1 : -1;
+    if (next >= 0) {e.preventDefault(); items[next]?.focus();}
+    if (e.key === 'Tab') closeContextMenu();
   }
 
   function showContextMenu(entries: CMEntry[], x: number, y: number): void {
     closeContextMenu();
     if (entries.length === 0) return;
     const menu = document.createElement("div");
-    menu.className = "crp-ctxmenu";
+    menu.className = "crp-ctxmenu"; menu.setAttribute("role", "menu");
+    menuPrevious = document.activeElement as HTMLElement;
     menu.innerHTML = entries
       .map((e) => {
         if ("separator" in e) return '<div class="crp-ctxmenu-sep"></div>';
         const cls = "crp-ctxmenu-item" + (e.danger ? " crp-ctxmenu-danger" : "");
-        return `<button class="${cls}" type="button">${escapeHtml(e.label)}</button>`;
+        return `<button class="${cls}" type="button" role="menuitem">${escapeHtml(e.label)}</button>`;
       })
       .join("");
     menu.addEventListener("contextmenu", (e) => e.preventDefault());
@@ -1927,6 +1997,7 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
       });
     });
     cmEl = menu;
+    menu.querySelector<HTMLButtonElement>("button")?.focus();
     document.addEventListener("mousedown", onCmDocMousedown, true);
     document.addEventListener("keydown", onCmKeydown, true);
     window.addEventListener("blur", closeContextMenu);
@@ -1945,7 +2016,8 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
   }
 
   function copyText(s: string): void {
-    navigator.clipboard?.writeText(s).catch(() => {});
+    if (!navigator.clipboard) { feedback("Clipboard unavailable"); return; }
+    void navigator.clipboard.writeText(s).then(() => feedback("Link copied")).catch(() => feedback("Couldn’t copy the link. Try again."));
   }
 
   async function addToQueueUri(uri: string): Promise<void> {
@@ -1954,7 +2026,7 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
     try {
       await api.addToQueue([{ uri }]);
     } catch {
-      // best effort — refresh below picks up whatever did land
+      feedback("Couldn’t add this track to the queue. Try again.");
     }
     await refreshQueue(true);
   }
@@ -1968,7 +2040,7 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
       if (liked) await api.remove?.({ uris: [uri] });
       else await api.add?.({ uris: [uri] });
     } catch {
-      // swallow — next sync corrects
+      feedback("Couldn’t update Liked Songs. Try again.");
     }
     syncLikeState();
   }
@@ -2087,6 +2159,13 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
   function mount(sidebar: HTMLElement): void {
     panelEl = build();
     sidebar.appendChild(panelEl);
+    setupJam(panelEl);
+    panelEl.addEventListener("keydown", e => {
+      const row = (e.target as Element).closest<HTMLElement>(".crp-list-row,.crp-friend-row");
+      if (!row || e.target !== row) return;
+      if (e.key === "Enter" || e.key === " ") {e.preventDefault(); row.click();}
+      if (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10")) {e.preventDefault(); const r=row.getBoundingClientRect(); row.dispatchEvent(new MouseEvent("contextmenu",{bubbles:true,clientX:r.left,clientY:r.top}));}
+    });
     // Wire list-container event delegation once per panel lifetime. With
     // hundreds of rows, per-row listeners would add up fast — all row
     // interactions below go through these single handlers.
@@ -2114,7 +2193,7 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
     setActiveTab(activeTab);
     // Re-populate tabs after re-inject (React may wipe our subtree).
     lastQueueKey = "";
-    lastFriendsKey = "";
+    lastFriendsKey = null;
     lastDevicesKey = "";
     recentItems = [];
     recentRawConsumed = 0;
@@ -2152,7 +2231,9 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
     // lag the currently-playing track by a few seconds, but stays
     // consistent with server truth — no local optimistic drift.
   });
-  Spicetify.Player.addEventListener("onplaypause", syncPlayPause);
+  Spicetify.Player.addEventListener("onplaypause", () => {syncPlayPause(); startProgressLoop(); refreshDevices(true);});
+  Spicetify.Player.addEventListener("onprogress", startProgressLoop);
+  document.addEventListener('visibilitychange', startProgressLoop);
 
   // Pick up likes/unlikes from other surfaces (now-playing-bar, context menu,
   // other clients). If the library events API isn't present, fall back to

@@ -29,6 +29,14 @@ test("missing anchors fail explicitly", () => {
   assert.equal(r.getMainView(), null);
   assert.equal(r.getRightSidebar(), null);
 });
+test("activity resolver supports current and legacy names without matching invitations", () => {
+  for (const label of ['Listening activity', 'Friend Activity']) {
+    w.document.body.innerHTML = `<button aria-label="Invite a friend"></button><button aria-label="${label}"></button>`;
+    assert.equal(r.getFriendActivityButton(), w.document.querySelectorAll('button')[1]);
+  }
+  w.document.body.innerHTML = '<button aria-label="Invite a friend"></button>';
+  assert.equal(r.getFriendActivityButton(), null);
+});
 test("right panel mounts outside hidden native aside", () => {
   w.document.body.innerHTML =
     '<div class="Root__right-sidebar"><aside aria-label="Now playing view"></aside></div>';

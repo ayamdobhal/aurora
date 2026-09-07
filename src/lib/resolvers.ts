@@ -368,15 +368,13 @@ export function getMiniplayerButton(): HTMLButtonElement | null {
   return null;
 }
 
-// The top-bar Friend Activity toggle button — we swap this in-place for our
-// lyrics toggle. Fallback chain: stable testid → exact English aria → partial
-// aria match (other locales) → case-insensitive contains.
+// Resolve the native activity control for compatibility checks. Keep label
+// fallbacks exact so invitations and unrelated friend actions never match.
 export function getFriendActivityButton(): HTMLButtonElement | null {
   const attempts: Array<[string, ResolverMethod]> = [
     ['button[data-testid="buddy-feed-toggle"]', "testid"],
+    ['button[aria-label="Listening activity" i]', "aria"],
     ['button[aria-label="Friend Activity" i]', "aria"],
-    ['button[aria-label*="Friend Activity" i]', "aria"],
-    ['button[aria-label*="friend" i]', "aria"],
   ];
   for (const [sel, method] of attempts) {
     const el = qs<HTMLButtonElement>(sel);
