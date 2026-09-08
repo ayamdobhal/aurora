@@ -32,7 +32,8 @@ With build tools on PATH, `just build`, `just check`, `just deploy` and `just re
 | `src/dynamic-theme.ts` | Dominant artwork color extraction, readable accents and crossfades |
 | `src/right-panel.ts` | Player, queue, recents, friends and device interactions |
 | `src/lyrics.ts`, `src/miniplayer.ts` | Main and floating player views |
-| `src/command-palette.ts`, `src/shortcuts.ts` | Search and global keyboard controls |
+| `src/command-palette.ts`, `src/shortcuts.ts` | Search, local recents and global keyboard controls |
+| `src/lib/search-preview.ts` | Native collection previews and complete collection queue resolution |
 | `src/lib/lyrics-service.ts` | Concurrent providers, normalization, precision ranking and bounded cache |
 | `src/lib/lyrics-view.ts` | Shared lyric renderer, timing controls and follow state |
 | `src/lib/jam.ts`, `src/lib/qr.ts` | Native session adapter and local QR generation |
@@ -59,7 +60,7 @@ npm run test:visual
 
 `npm test` runs the bundled components in synthetic DOMs with mocked Spotify APIs. Coverage includes preferences, keyboard behavior, lyrics ranking/races/timeouts, QR decoding, artwork loading, panel remounts, device transfer failures, queue operations, installer ownership and Windows chrome fallbacks.
 
-The visual suite renders sanitized fixtures in Chromium: native and custom control contrast across seven palettes, hover/pressed/focus states, Mix key badges, hidden lyrics toolbar interaction, sidebar resize hit targets, and player/miniplayer geometry at several sizes. Set `CHROME_PATH` to an installed Chrome executable to use it instead of Playwright's browser. Screenshots and live reports go into ignored `reports/` directories.
+The visual suite renders sanitized fixtures in Chromium: native and custom control contrast across seven palettes, hover/pressed/focus states, Mix key badges, hidden lyrics toolbar interaction, sidebar resize hit targets, and player/miniplayer geometry at several sizes. Set `CHROME_PATH` to an installed Chrome executable to use it instead of Playwright's browser. The search visual suite also checks hover/keyboard previews, filters, focus restoration and responsive columns at three window sizes. Screenshots and live reports go into ignored `reports/` directories.
 
 CI runs unit tests and builds, plus the Windows installer fixture in Windows PowerShell 5.1. The release workflow also exercises the installer under PowerShell. Visual tests run separately with a browser; they do not establish compatibility with every Spotify experiment or Windows GPU configuration.
 

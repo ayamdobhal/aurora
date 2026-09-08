@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## v0.4.0 — 2026-09-08
+
+### Added
+- Redesigned quick search with an album-accented glass surface, header filters, keyboard shortcut footer and local recent searches.
+- Hover or arrow through search results to preview album and playlist tracks; click/Enter plays tracks and collections, with Shift+Enter/click to queue tracks or whole collections and Ctrl/Cmd+O to open.
+- Responsive preview layout and regression coverage for hover/keyboard navigation, stale previews, filters, recents and error states.
+
 ## v0.3.0 — 2026-09-08
 
 ### Added

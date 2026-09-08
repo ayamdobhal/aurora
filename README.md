@@ -13,6 +13,7 @@ Aurora is a [Spicetify](https://spicetify.app) theme and extension bundle for Sp
 - **An interface that follows your music.** Glass surfaces, artwork-derived accents and smooth background transitions, with readable controls and support for reduced motion.
 - **Lyrics with room to breathe.** Word-by-word highlighting where available, line seeking, adjustable timing and a distraction-free focus mode.
 - **Your player, in one place.** Queue, Recent, Friends and Devices sit beneath the artwork. Drag queued tracks to reorder them, or open the floating miniplayer to keep listening while you work.
+- **Search without losing your place.** Preview albums and playlists beside your results, then play, queue or open them with a click or shortcut.
 - **Listening together.** Start or manage a Jam inside Friends. Share an invite link or show a QR code for someone nearby to scan.
 - **A layout that stays yours.** Resize either sidebar by its inner edge. Aurora remembers your player width, sidebar tab, miniplayer setup and lyrics preferences.
 
@@ -53,6 +54,24 @@ Open lyrics with the button on the player or **F2**. Hover over the top of the l
 **Auto** checks AMLL, lrclib and Spotify together, choosing word-timed lyrics over line-timed lyrics, then plain text. You can also choose a source yourself. Use **− / +** to adjust timing in 50 ms steps, **Reset timing** to undo an adjustment, or **Retry** to request fresh lyrics. Timing is saved separately for each track.
 
 Click a lyric line to seek to it. Scroll to read ahead without being pulled back; **Back to current line** resumes following. **F3**, or the player’s focus button, hides the surrounding panels. **Escape** brings them back.
+
+### Quick search
+
+Press **⌘/Ctrl + K** to search. Use the header filters to narrow the top matches. Hover a result or use **↑ / ↓** to preview it; albums and playlists show up to 12 tracks alongside the results.
+
+| While search is open | Action |
+| --- | --- |
+| Enter or click | Play the selected result |
+| Shift + Enter or Shift + click | Add a track, album or playlist to the queue |
+| ⌘/Ctrl + O | Open the selected result in Spotify |
+| Tab | Move through filters and preview actions |
+| Escape | Close search |
+
+Queueing keeps search open and adds the full playable album or playlist, including tracks beyond the preview. Artist results support Play and Open. The same actions are available as buttons in the preview, and the footer keeps shortcuts visible.
+
+Recent searches are saved on this device after you use a result; clear them from the empty search view. On narrow windows, the preview sits below the results.
+
+![Aurora quick search with album filters, track preview and keyboard shortcuts](docs/images/aurora-search.png)
 
 ### Sidebars and miniplayer
 
