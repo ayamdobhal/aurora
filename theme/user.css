@@ -2650,3 +2650,31 @@ img.crp-cover:not([src]) { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .search-searchCategory-contentArea > .search-searchCategory-carousel { transition: none; }
 }
+
+/* Image-backed entity headers need their own contrast scrim. Spotify can mount
+   the banner outside the header, so keep this independent of its color/fade layers. */
+.main-entityHeader-withBackgroundImage { position: relative; }
+.main-entityHeader-withBackgroundImage::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, .62) 35%, rgba(0, 0, 0, .8) 100%);
+}
+.main-entityHeader-withBackgroundImage > .main-entityHeader-contentWrapper {
+  position: relative;
+  z-index: 1;
+}
+/* Newer Spotify builds zoom a sibling banner beyond the header bounds. Put
+   the scrim on that image so its edges and scroll fade stay aligned. */
+.Root__main-view [style*="background-image"]:has(+ [style*="--background-base"][style*="--background-elevated"])::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, .62) 35%, rgba(0, 0, 0, .8) 100%);
+}
+.Root__main-view:has([style*="background-image"] + [style*="--background-base"][style*="--background-elevated"]) .main-entityHeader-withBackgroundImage::before {
+  content: none;
+}
