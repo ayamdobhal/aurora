@@ -153,6 +153,32 @@ const rgb = (text) => text.match(/[\d.]+/g).slice(0,3).map(Number);
     await page.emulateMedia({reducedMotion:'reduce'});
     assert.equal(await page.locator('.lyrics-tools').evaluate(e=>getComputedStyle(e).transitionDuration),'0s');
     console.log('Passed Mix key badge contrast and lyrics toolbar hover/focus auto-hide.');
+    const playerCode=buildSync({entryPoints:['src/right-panel.ts'],bundle:true,write:false,format:'iife'}).outputFiles[0].text;
+    for(const [width,height] of [[240,730],[340,900],[560,1265]]) {
+      const fixture=await browser.newPage({viewport:{width:width+80,height}});
+      await fixture.setContent('<!doctype html><div class="Root__globalNav"><button aria-label="Listening activity">Friends</button><button aria-label="Notifications">Notifications</button></div><div class="Root__right-sidebar" style="position:relative;height:calc(100vh - 40px)"></div>');
+      await fixture.addStyleTag({content:fs.readFileSync('theme/user.css','utf8')});
+      await fixture.evaluate(width=>{
+        document.documentElement.style.setProperty('--aurora-right-width',width+'px');
+        window.Spicetify={Player:{data:{item:{uri:'spotify:track:fixture',metadata:{title:'A long title for the current track',artist_name:'Artist',album_title:'Album',image_url:'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="80" height="80"%3E%3Crect width="80" height="80" fill="tan"/%3E%3C/svg%3E'}},isPaused:true},addEventListener(){},getProgress:()=>1000,getDuration:()=>120000,getVolume:()=>.5,getMute:()=>false,getShuffle:()=>false,getRepeat:()=>0},Platform:{SocialConnectAPI:{getCurrentSession:()=>({sessionId:'fixture',isSessionOwner:true,sessionOwnerId:'host',sessionMembers:[{id:'host',displayName:'Host'},{id:'guest',displayName:'Friend'}]}),getJamJoinInfo:()=>({joinSessionShortLink:{shareableUrl:'https://spotify.link/exampleJamInvite'}})},History:{push(){}},PlayerAPI:{getQueue:async()=>({queued:[],nextUp:[]})},ConnectAPI:{getDevices:async()=>[]},RecentsAPI:{getContents:async()=>[]}},CosmosAsync:{get:async()=>null}};
+      },width);
+      await fixture.addScriptTag({content:playerCode});
+      await fixture.locator('img.crp-cover[src]').waitFor();
+      assert.ok(await fixture.evaluate(()=>{
+        const cover=document.querySelector('.crp-cover').getBoundingClientRect();
+        return cover.width>20 && Math.abs(cover.width-cover.height)<1 && [...document.querySelectorAll('.crp-track-info button')].every(e=>e.getBoundingClientRect().top>=cover.bottom);
+      }), `player actions remain below square art at ${width}×${height}`);
+      assert.equal(await fixture.getByRole('button',{name:'Listening activity',includeHidden:true}).isVisible(),false);
+      assert.equal(await fixture.getByRole('button',{name:'Notifications'}).isVisible(),true);
+      await fixture.locator('.crp-tab[data-tab="friends"]').click();
+      await fixture.getByRole('button',{name:'Show Jam invite QR code'}).click();
+      assert.ok(await fixture.locator('.aurora-jam-qr').evaluate(e=>{
+        const r=e.querySelector('svg').getBoundingClientRect();return r.width>=140 && Math.abs(r.width-r.height)<1 && e.scrollWidth<=e.clientWidth;
+      }),`Jam QR remains square and fits ${width}px sidebar`);
+      if(width===340) await fixture.screenshot({path:'reports/phase-1/jam-qr-fixture.png'});
+      await fixture.close();
+    }
+    console.log('Passed real player artwork/action geometry at three panel sizes and scoped topbar hiding.');
     console.log('Passed miniplayer lyrics scroll containment and compact controls at three window sizes.');
     console.log(`Passed ${checks} palette/control state combinations, selected menus, surfaces, focus, chips and native feedback visibility.`);
     console.log('Passed invisible resize edge hit targets and rendered drag geometry.');
