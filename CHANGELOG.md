@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## v0.4.2 — 2026-09-08
+
+### Fixed
+- Keep titles and metadata readable over bright playlist and artist banners with a scoped header contrast gradient. Cover the full zoomed image on artist and playlist variants to avoid a bright strip below the text.
+
 ## v0.4.1 — 2026-09-08
 
 ### Fixed
