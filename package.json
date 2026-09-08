@@ -9,9 +9,14 @@
     "compat": "node scripts/compat.cjs"
   },
   "devDependencies": {
+    "@types/qrcode": "1.5.6",
     "esbuild": "0.28.2",
     "jsdom": "30.0.1",
+    "jsqr": "1.4.0",
     "playwright": "1.63.0",
     "typescript": "7.0.2"
+  },
+  "dependencies": {
+    "qrcode": "1.5.4"
   }
 }

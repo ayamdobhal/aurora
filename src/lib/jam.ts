@@ -1,3 +1,4 @@
+import { inviteQr } from "./qr";
 type Member = { id: string; displayName?: string; username?: string; imageUrl?: string };
 type Session = { sessionId?: string; isSessionOwner?: boolean; sessionOwnerId?: string; sessionMembers?: Member[]; deviceName?: string };
 type JamAPI = {
@@ -8,7 +9,7 @@ type JamAPI = {
   deleteSession?: () => Promise<boolean>;
   leaveSession?: () => Promise<boolean>;
   removeSessionMember?: (id: string) => Promise<unknown>;
-  getJamJoinInfo?: () => { joinSessionShortLink?: { shareableUrl?: string } } | null;
+  getJamJoinInfo?: () => { joinSessionShortLink?: { shareableUrl?: string }; joinSessionShortLinkQR?: { shareableUrl?: string } } | null;
 };
 const api = () => (Spicetify.Platform as unknown as { SocialConnectAPI?: JamAPI }).SocialConnectAPI;
 
@@ -16,18 +17,20 @@ const api = () => (Spicetify.Platform as unknown as { SocialConnectAPI?: JamAPI 
 export function setupJam(root: HTMLElement): void {
   const pane = root.querySelector('.crp-tab-pane[data-pane="friends"]');
   if (!pane) return;
+  let qrVisible = false, qrSession: string | undefined, qrLink = '';
   let busy = false, message = '', confirm: (() => Promise<void>) | null = null;
   let checking = !!api()?.fetchCurrentSession, session: Session | null = null, key = '';
   const card = document.createElement('section'); card.className = 'aurora-jam';
   card.innerHTML = `<button class="aurora-jam-heading" type="button" aria-expanded="true"><strong>Jam</strong><span class="aurora-jam-summary"></span><span aria-hidden="true">⌄</span></button>
     <div class="aurora-jam-content"><p class="aurora-jam-status" role="status"></p><ul class="aurora-jam-members" aria-label="Jam participants"></ul><div class="aurora-jam-actions"></div>
-    <div class="aurora-jam-confirm" hidden><p></p><button type="button" data-confirm>Confirm</button><button type="button" data-cancel>Cancel</button></div></div>`;
+    <figure class="aurora-jam-qr" hidden></figure><div class="aurora-jam-confirm" hidden><p></p><button type="button" data-confirm>Confirm</button><button type="button" data-cancel>Cancel</button></div></div>`;
   pane.prepend(card);
   const heading = card.querySelector<HTMLButtonElement>('.aurora-jam-heading')!;
   const content = card.querySelector<HTMLElement>('.aurora-jam-content')!;
   const status = card.querySelector<HTMLElement>('.aurora-jam-status')!;
   const list = card.querySelector('ul')!;
   const actions = card.querySelector<HTMLElement>('.aurora-jam-actions')!;
+  const qr = card.querySelector<HTMLElement>('.aurora-jam-qr')!;
   const confirmation = card.querySelector<HTMLElement>('.aurora-jam-confirm')!;
   heading.addEventListener('click', () => { content.hidden = !content.hidden; heading.setAttribute('aria-expanded', String(!content.hidden)); });
   function ask(text: string, action: () => Promise<void>) {
@@ -53,8 +56,24 @@ export function setupJam(root: HTMLElement): void {
     return button;
   }
   async function refresh() { await api()?.fetchCurrentSession?.(); }
+  function updateQr() {
+    try {
+      const info = api()?.getJamJoinInfo?.();
+      const link = info?.joinSessionShortLinkQR?.shareableUrl || info?.joinSessionShortLink?.shareableUrl;
+      if (!link) throw Error();
+      if (link !== qrLink) {
+        qr.replaceChildren(inviteQr(link));
+        const caption = document.createElement('figcaption'); caption.textContent = 'Scan to join this Jam'; qr.appendChild(caption); qrLink = link;
+      }
+      qr.hidden = !qrVisible;
+    } catch { qr.hidden = true; qrLink = ''; qr.replaceChildren(); qrVisible = false; message = 'Invite QR isn’t ready. Try again in a moment.'; }
+  }
   function render() {
     try { session = api()?.getCurrentSession?.() ?? null; } catch { session = null; }
+    if (!session || session.sessionId !== qrSession) {
+      qrVisible = false; qrLink = ''; qr.replaceChildren(); qr.hidden = true; qrSession = session?.sessionId;
+    }
+    if (qrVisible) updateQr();
     const summary = session ? `${session.isSessionOwner ? 'Hosting' : 'Listening together'} · ${session.sessionMembers?.length ?? 1}` : 'Listen together';
     card.querySelector('.aurora-jam-summary')!.textContent = summary;
     status.textContent = checking ? 'Checking your session…' : busy ? 'Updating Jam…' : message || (session ? session.deviceName ? `Listening on ${session.deviceName}` : 'Everyone can add to the queue.' : 'Start a Jam and share the link with friends.');
@@ -97,6 +116,16 @@ export function setupJam(root: HTMLElement): void {
       if (!link || !/^https:\/\//.test(link) || !navigator.clipboard) throw Error();
       await navigator.clipboard.writeText(link); message = 'Invite link copied';
     }));
+    if (api()?.getJamJoinInfo) {
+      const button = addButton('QR code', () => {
+        qrVisible = !qrVisible;
+        if (qrVisible) updateQr(); else qr.hidden = true;
+        button.setAttribute('aria-expanded', String(qrVisible));
+        if (!qrVisible && message) status.textContent = message;
+      });
+      button.setAttribute('aria-expanded', String(qrVisible));
+      button.setAttribute('aria-label', 'Show Jam invite QR code');
+    }
     const end = current.isSessionOwner;
     if (end ? api()?.deleteSession : api()?.leaveSession) addButton(end ? 'End Jam' : 'Leave Jam', () => ask(end ? 'End this Jam for everyone?' : 'Leave this Jam?', async () => {
       if (api()?.getCurrentSession?.()?.sessionId !== current.sessionId) throw Error();

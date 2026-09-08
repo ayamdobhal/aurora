@@ -2529,3 +2529,9 @@ img.crp-cover { display: block; object-fit: cover; isolation: isolate; backface-
 img.crp-cover:not([src]) { visibility: hidden; }
 /* Friends already has a dedicated sidebar tab. Keep unrelated native controls. */
 :is(.Root__globalNav, #global-nav-bar) :is(button[data-testid="buddy-feed-toggle"], button[aria-label="Listening activity" i], button[aria-label="Friend Activity" i]) { display: none !important; }
+.aurora-jam-qr { margin: 12px 0 0; padding: 10px; border-radius: 10px; background: #fff; color: #111; text-align: center; }
+.aurora-jam-qr[hidden] { display: none; }
+.aurora-jam-qr svg { display: block; width: 100%; max-width: 240px; height: auto; margin: 0 auto; }
+.aurora-jam-qr svg rect { fill: #fff; }
+.aurora-jam-qr svg path { fill: #000; }
+.aurora-jam-qr figcaption { margin-top: 6px; font-size: 11px; color: #111; }
