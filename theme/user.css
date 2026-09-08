@@ -389,8 +389,6 @@ input.x-searchInput-searchInputInput {
 [style*="--scrollAnimationRange"] {
   mask-image: none !important;
   -webkit-mask-image: none !important;
-  --scrollAnimationRangeStart: 0 !important;
-  --scrollAnimationRangeEnd: 0 !important;
 }
 
 [class*="Shelf"]::before,
@@ -2619,3 +2617,36 @@ img.crp-cover:not([src]) { visibility: hidden; }
   .cmd-footer { padding: 10px 12px; gap: 10px; }
 }
 @media (prefers-reduced-motion: reduce) { .cmd-modal { animation: none; } .cmd-modal button, .cmd-result { transition: none; } }
+
+/* Carousel chevrons can live inside Encore light controls even in a dark theme.
+   Own both colors, while leaving native opacity, hit testing and scroll timelines intact. */
+.search-searchCategory-carouselButton {
+  --text-base: var(--aurora-text);
+  background-color: var(--aurora-elevated) !important;
+  color: var(--aurora-text) !important;
+  box-shadow: 0 2px 8px #0004;
+}
+.search-searchCategory-carouselButton:hover {
+  background-color: color-mix(in srgb, var(--aurora-accent-fill) 18%, var(--aurora-elevated)) !important;
+}
+.search-searchCategory-carouselButton svg {
+  color: var(--aurora-text) !important;
+  fill: currentColor !important;
+}
+
+/* Reveal carousel tools only while interacting with their row. The wrapper
+   handles hover visibility; each arrow retains Spotify's own edge visibility. */
+@media (hover: hover) {
+  .search-searchCategory-contentArea > .search-searchCategory-carousel {
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 120ms ease;
+  }
+  .search-searchCategory-contentArea:is(:hover, :focus-within) > .search-searchCategory-carousel {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .search-searchCategory-contentArea > .search-searchCategory-carousel { transition: none; }
+}

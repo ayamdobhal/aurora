@@ -34,6 +34,13 @@ const rgb = (text) => text.match(/[\d.]+/g).slice(0,3).map(Number);
         <div class="category" style="--background-base: #d2199b">Browse category</div>
         <div class="crp-device-active"><span class="crp-list-name">Connected device</span></div>
       </div></main>
+      <div class="search-searchCategory-contentArea" style="--scrollAnimationRangeStart:10px;--scrollAnimationRangeEnd:60px">
+        <button id="carousel-chip">More discovery tracks</button>
+        <div class="search-searchCategory-carousel encore-light-theme" style="--background-elevated-base:#fff;--text-base:#f5f6f7;display:flex;gap:8px">
+          <div id="carousel-previous" class="search-searchCategory-carouselButton" style="opacity:0;pointer-events:none" aria-hidden="true"><svg style="fill:var(--text-base)" viewBox="0 0 16 16"><path d="M10 2L4 8l6 6z"/></svg></div>
+          <div id="carousel-next" class="search-searchCategory-carouselButton" style="width:32px;height:32px;border-radius:50%;background:var(--background-elevated-base)" aria-hidden="true"><svg style="fill:var(--text-base)" viewBox="0 0 16 16"><path d="M6 2l6 6-6 6z"/></svg></div>
+        </div>
+      </div>
       <div role="menu"><button role="menuitemradio" aria-checked="true">Selected sort</button></div>
       <div data-testid="toast">Saved</div><div data-testid="connect-device-picker">Devices</div>
     </body></html>`);
@@ -67,6 +74,22 @@ const rgb = (text) => text.match(/[\d.]+/g).slice(0,3).map(Number);
         if (state==='focus') assert.equal(actual.outline,'solid');
         checks++;
       }
+      for (const hover of [false,true]) {
+        await page.mouse.move(950,700);
+        if (hover) { await page.locator('.search-searchCategory-contentArea').hover(); await page.locator('#carousel-next').hover(); }
+        const control = await page.locator('#carousel-next').evaluate(e=>({bg:getComputedStyle(e).backgroundColor,fg:getComputedStyle(e.querySelector('svg')).fill}));
+        assert.ok(colors.contrast(rgb(control.fg),rgb(control.bg))>=4.5,'carousel arrow contrasts with its own surface in light controls');
+      }
+      await page.mouse.move(950,700);
+      assert.equal(await page.locator('.search-searchCategory-carousel').evaluate(e=>getComputedStyle(e).visibility),'hidden','idle controls do not cover chips');
+      await page.locator('.search-searchCategory-contentArea').hover();
+      assert.equal(await page.locator('.search-searchCategory-carousel').evaluate(e=>getComputedStyle(e).visibility),'visible','row hover reveals controls');
+      await page.mouse.move(950,700); await page.locator('#carousel-chip').focus();
+      assert.equal(await page.locator('.search-searchCategory-carousel').evaluate(e=>getComputedStyle(e).visibility),'visible','keyboard focus reveals controls');
+      await page.locator('#carousel-chip').blur();
+      assert.equal(await page.locator('#carousel-previous').evaluate(e=>getComputedStyle(e).opacity),'0','native hidden end stays hidden');
+      assert.equal(await page.locator('#carousel-previous').evaluate(e=>getComputedStyle(e).pointerEvents),'none');
+      assert.equal(await page.locator('.search-searchCategory-contentArea').evaluate(e=>getComputedStyle(e).getPropertyValue('--scrollAnimationRangeStart').trim()),'10px','native scroll visibility range survives gradient removal');
       for (const selector of ['.crp-primary','.mp-primary','[role=checkbox] > span']) {
         for (const hover of [false,true]) {
           await page.mouse.move(950,700);if(hover) await page.locator(selector).hover();
