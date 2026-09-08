@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## v0.4.1 — 2026-09-08
+
+### Fixed
+- Restore readable carousel arrows inside light-themed chip controls and preserve native scroll ranges for edge visibility. Reveal arrows on row hover or keyboard focus on devices with hover support.
+
 ## v0.4.0 — 2026-09-08
 
 ### Added
