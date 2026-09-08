@@ -178,3 +178,9 @@ Fixed transparent Mix key notation caused by the inherited background token; nat
 ### Accent balance follow-up
 
 With bounded dark surfaces in place, selected native filter chips and sidebar/PiP tabs again use the album fill plus contrasting foreground. Current-track titles, focus rings and relevant hover states use the readable accent variant. Body copy remains neutral and Mix key colors stay native. Palette fixtures now include selected chip fill/foreground checks across all seven palettes.
+
+### Wide player, artwork, QR and precision follow-up
+
+Player buttons now reserve their own grid row; rendered production-player checks cover 240×730, 340×900 and 560×1265 panels. Artwork uses a stable decoded image with deduplicated updates and stale-load protection, addressing plausible repaint-related flicker; Windows GPU behavior remains unverified on this Mac. Friends activity is hidden only in native topbar chrome. Auto lyrics queries all three sources concurrently, waits for their bounded results, and ranks word timing, line timing, plain text, then instrumental; equal precision retains AMLL/lrclib/Spotify priority. Explicit source selection remains exclusive. Jam now offers a locally generated SVG QR from the cached invite link, with a four-module quiet zone and session invalidation. The 73-test suite includes QR decoding, missing invite state, concurrent provider quality comparisons and image decode races; rendered geometry and existing visual checks pass. Live player geometry, hidden native Friends control and current-track lyrics were verified. No active Jam was present during this check; no session was created for testing.
+
+The user subsequently tested the Jam QR UI in a live session and confirmed it works.

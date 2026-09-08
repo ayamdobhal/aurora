@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+## v0.3.0 — 2026-09-08
+
+### Added
+- Share your Jam with a scannable QR code beside Copy invite link. Codes are generated locally and cleared when the session changes.
+
+### Changed
+- Auto lyrics checks AMLL, lrclib and Spotify together and chooses word-timed lyrics before line-timed lyrics, then plain text. Manual source selection remains available.
+- Friends activity now lives exclusively in the sidebar; its duplicate topbar button is hidden.
+- Reworked the README around installation, listening features and controls, with fresh screenshots and a separate developer guide.
+
+### Fixed
+- Lyrics and focus buttons stay below album artwork when the player panel is widened.
+- Artwork changes wait for image decoding and ignore redundant or stale updates, reducing opportunities for cover flicker.
+
+### Validation
+- Regression coverage for QR decoding and session changes, concurrent lyrics quality selection, artwork loading races, wide/narrow player layouts and topbar visibility.
+- Windows-specific artwork flicker remains pending confirmation on Windows.
+
 ## v0.2.0 — 2026-09-08
 
 ### Changed
