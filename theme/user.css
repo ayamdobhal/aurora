@@ -2508,3 +2508,24 @@ body.aurora-focus .aurora-focus-controls { display: flex; position: fixed; z-ind
 }
 .Root__nav-bar a[aria-current="page"], .Root__globalNav a[aria-current="page"] { color: var(--aurora-accent-text); }
 .main-trackList-trackList { --text-positive: var(--aurora-accent-text); }
+
+/* Player tools own a grid row instead of sitting above track info over the cover. */
+.crp-track-info {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 28px;
+  grid-template-rows: 26px auto;
+  grid-template-areas: "focus . lyrics" "mini text like";
+  gap: 4px 6px;
+  align-items: center;
+}
+.crp-track-text { grid-area: text; padding: 0; }
+.crp-focus { grid-area: focus; }
+.crp-lyrics { grid-area: lyrics; }
+.crp-btn.crp-miniplayer { grid-area: mini; }
+.crp-btn.crp-like { grid-area: like; }
+.crp-track-info > .crp-btn { position: static; transform: none; }
+.crp-cover-wrap { margin-bottom: 0; }
+img.crp-cover { display: block; object-fit: cover; isolation: isolate; backface-visibility: hidden; transform: translateZ(0); }
+img.crp-cover:not([src]) { visibility: hidden; }
+/* Friends already has a dedicated sidebar tab. Keep unrelated native controls. */
+:is(.Root__globalNav, #global-nav-bar) :is(button[data-testid="buddy-feed-toggle"], button[aria-label="Listening activity" i], button[aria-label="Friend Activity" i]) { display: none !important; }

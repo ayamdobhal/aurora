@@ -1,3 +1,4 @@
+import { syncArtwork } from "./lib/artwork";
 import { preferences, savePreferences } from "./lib/preferences";
 import { syncTabs, wireSlider } from "./lib/accessibility";
 import { setupJam } from "./lib/jam";
@@ -102,7 +103,7 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
     el.innerHTML = `
       <div class="crp-player">
         <a class="crp-context" href="#"><span class="crp-context-label">Playing from</span> <span class="crp-context-name"></span></a>
-        <div class="crp-cover-wrap"><div class="crp-cover"></div></div>
+        <div class="crp-cover-wrap"><img class="crp-cover" alt="" draggable="false" /></div>
         <div class="crp-track-info">
           <div class="crp-track-text">
             <a class="crp-track-name crp-link"></a>
@@ -373,8 +374,8 @@ import { getRightSidebar, maintainInjection } from "./lib/resolvers";
     const name = meta.title || track?.name || "";
     const artist = meta.artist_name || "";
     const album = meta.album_title || "";
-    const coverEl = panelEl.querySelector<HTMLElement>(".crp-cover");
-    if (coverEl) coverEl.style.backgroundImage = cover ? `url('${cover}')` : "";
+    const coverEl = panelEl.querySelector<HTMLImageElement>(".crp-cover");
+    if (coverEl) syncArtwork(coverEl, cover);
     setLink(
       panelEl.querySelector<HTMLAnchorElement>(".crp-track-name"),
       name,
