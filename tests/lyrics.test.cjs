@@ -23,7 +23,7 @@ test("AMLL word timing renders and clicking a line seeks", async (t) => {
   f.w.document.querySelector(".lyric-line").click();
   assert.deepEqual(f.calls, [["seek", 1000]]);
 });
-test("lyrics fall through unavailable providers to Spotify", async (t) => {
+test("Auto selects Spotify when the other providers have no lyrics", async (t) => {
   const f = setup(t),
     urls = [];
   f.w.fetch = async (url) => {
@@ -47,7 +47,8 @@ test("lyrics fall through unavailable providers to Spotify", async (t) => {
 test("out-of-order lyrics requests cannot replace the current track", async (t) => {
   const f = setup(t),
     requests = [];
-  f.w.fetch = () => {
+  f.w.fetch = (url) => {
+    if (!url.includes("githubusercontent")) return Promise.resolve({ok:false,status:404});
     const d = deferred();
     requests.push(d);
     return d.promise;
@@ -68,7 +69,8 @@ test("out-of-order lyrics requests cannot replace the current track", async (t) 
 test("replaced slot keeps the new progress loop after an old request completes", async (t) => {
   const f = setup(t),
     requests = [];
-  f.w.fetch = () => {
+  f.w.fetch = (url) => {
+    if (!url.includes("githubusercontent")) return Promise.resolve({ok:false,status:404});
     const d = deferred();
     requests.push(d);
     return d.promise;

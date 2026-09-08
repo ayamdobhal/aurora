@@ -26,3 +26,34 @@ test('slow response bodies time out and malformed word timing is normalized',asy
  const spotify=await p.requestLyrics(f.player.data.item,'spotify');assert.equal(spotify.lyrics.lines[0].text,'first');assert.equal(spotify.lyrics.lines.length,2);
  }finally{f.dom.window.close()}
 });
+
+test('Auto starts all three providers concurrently and chooses word timing regardless of completion order',async()=>{
+ const f=fixture();try{
+ const p=f.w.eval(code+';Service;'),a=deferred(),l=deferred(),s=deferred(),calls=[];
+ f.w.fetch=url=>{calls.push(url.includes('githubusercontent')?'amll':'lrclib');return url.includes('githubusercontent')?a.promise:l.promise};
+ f.w.Spicetify.CosmosAsync.get=()=>{calls.push('spotify');return s.promise};
+ const result=p.requestLyrics(f.player.data.item);assert.deepEqual(calls,['amll','lrclib','spotify']);
+ s.resolve({lyrics:{syncType:'LINE_SYNCED',lines:[{startTimeMs:'1000',words:'Spotify line'}]}});
+ a.resolve({ok:true,text:async()=>'<tt><p begin="1s">AMLL line</p></tt>'});
+ l.resolve({ok:true,json:async()=>({syncedLyrics:'[00:01.00]<00:01.00>Word <00:01.50>timing'})});
+ assert.equal((await result).provider,'lrclib');assert.ok((await result).lyrics.lines[0].words);
+ }finally{f.dom.window.close()}
+});
+test('line timing outranks plain lyrics; failed providers do not discard usable results',async()=>{
+ const f=fixture();try{
+ const p=f.w.eval(code+';Service;');f.w.fetch=async url=>url.includes('githubusercontent')?{ok:false,status:500}:{ok:true,json:async()=>({plainLyrics:'Plain'})};
+ f.w.Spicetify.CosmosAsync.get=async()=>({lyrics:{syncType:'LINE_SYNCED',lines:[{startTimeMs:'1000',words:'Timed'}]}});
+ assert.equal((await p.requestLyrics(f.player.data.item)).provider,'spotify');
+ p.invalidateLyrics(f.player.data.item.uri);f.w.Spicetify.CosmosAsync.get=async()=>{throw Error('offline')};
+ assert.equal((await p.requestLyrics(f.player.data.item)).lyrics.type,'unsynced');
+ }finally{f.dom.window.close()}
+});
+test('equal precision uses deterministic provider priority and explicit sources stay exclusive',async()=>{
+ const f=fixture();try{
+ const p=f.w.eval(code+';Service;'),calls=[];
+ f.w.fetch=async url=>{calls.push(url);return url.includes('githubusercontent')?{ok:true,text:async()=>'<tt><p begin="1s">AMLL</p></tt>'}:{ok:true,json:async()=>({syncedLyrics:'[00:01.00]lrclib'})}};
+ f.w.Spicetify.CosmosAsync.get=async()=>({lyrics:{syncType:'LINE_SYNCED',lines:[{startTimeMs:'1000',words:'Spotify'}]}});
+ assert.equal((await p.requestLyrics(f.player.data.item)).provider,'amll');calls.length=0;
+ assert.equal((await p.requestLyrics(f.player.data.item,'lrclib')).provider,'lrclib');assert.equal(calls.length,1);assert.ok(calls[0].includes('lrclib'));
+ }finally{f.dom.window.close()}
+});

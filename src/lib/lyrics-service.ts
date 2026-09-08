@@ -228,6 +228,13 @@ export type LyricsResult = { lyrics: Lyrics; provider: Provider };
 type Store = { cache: Map<string, { value: LyricsResult; until: number }>; pending: Map<string, Promise<LyricsResult>> };
 const host = window as unknown as { __auroraLyrics?: Store };
 function store(): Store { return host.__auroraLyrics ??= { cache: new Map(), pending: new Map() }; }
+function precision(lyrics: Lyrics): number {
+  if (lyrics.type === 'synced' && lyrics.lines.length) {
+    return lyrics.lines.some(line => line.words?.some(word => Number.isFinite(word.time) && word.endTime > word.time && word.text.trim())) ? 4 : 3;
+  }
+  if (lyrics.type === 'unsynced' && lyrics.text.trim()) return 2;
+  return lyrics.type === 'instrumental' ? 1 : 0;
+}
 export function requestLyrics(track: Track, provider = preferences().provider, retry = false): Promise<LyricsResult> {
   const shared = store(), key = `${track.uri}:${provider}`;
   if (!retry) {
@@ -239,15 +246,20 @@ export function requestLyrics(track: Track, provider = preferences().provider, r
     if (!track.uri.startsWith('spotify:track:')) return { lyrics: { type: 'none' }, provider };
     const meta = track.metadata || {};
     const providers: Exclude<Provider, 'auto'>[] = provider === 'auto' ? ['amll','lrclib','spotify'] : [provider];
-    let failed = false;
-    for (const source of providers) {
-      try {
-        const lyrics = await withTimeout(source === 'amll' ? fetchFromAMLL(track.uri) : source === 'spotify' ? fetchFromSpotify(track.uri)
-          : fetchFromLrclib(meta.title || track.name, meta.artist_name, meta.album_title, track.duration?.milliseconds || Number(meta.duration) || 0));
-        if (lyrics && (lyrics.type !== 'synced' || lyrics.lines.length)) return { lyrics, provider: source };
-      } catch { failed = true; }
+    // Launch every selected provider immediately; completion order never decides quality.
+    const results = await Promise.allSettled(providers.map(async source => {
+      const lyrics = await withTimeout(source === 'amll' ? fetchFromAMLL(track.uri) : source === 'spotify' ? fetchFromSpotify(track.uri)
+        : fetchFromLrclib(meta.title || track.name, meta.artist_name, meta.album_title, track.duration?.milliseconds || Number(meta.duration) || 0));
+      return { lyrics, provider: source };
+    }));
+    let best: LyricsResult | null = null, score = 0;
+    for (const result of results) {
+      if (result.status !== 'fulfilled' || !result.value.lyrics) continue;
+      const rank = precision(result.value.lyrics);
+      // Provider order is only a deterministic tie-breaker (AMLL, lrclib, Spotify).
+      if (rank > score) { best = {lyrics: result.value.lyrics, provider: result.value.provider}; score = rank; }
     }
-    return { lyrics: { type: failed ? 'error' : 'none' }, provider };
+    return best ?? { lyrics: { type: results.some(r => r.status === 'rejected') ? 'error' : 'none' }, provider };
   })();
   shared.pending.set(key, request);
   void request.then(value => {
