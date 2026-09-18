@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+## v0.4.3 — 2026-09-19
+
+### Fixed
+- Restore Aurora's lyrics panel and focus navigation on Spotify 1.3 after the native lyrics markup changed.
+- Restore Spotify synced lyrics through the authenticated native request builder, with the legacy transport retained for older clients.
+- Remove native Home hover tints and playlist/Liked Songs background layers introduced by the updated client.
+
+### Changed
+- Prefer Spotify over lrclib when lyrics have equal timing precision, with AMLL retaining first priority.
+- Show Jam QR codes automatically with the album accent as their background. Click to enlarge, then click again or press Escape to shrink; enlarged codes scroll into view.
+- Check that Aurora's lyrics panel is visible on the live lyrics route during compatibility probes.
+
+### Validation
+- Passed 97 unit tests, TypeScript/build checks, and the Chromium visual suite.
+- Verified lyrics sources, focus/navigation, sidebar tabs, search previews, miniplayer, and background styling inside Spotify 1.3.0.277 with Spicetify 2.45.1 on macOS.
+- Live Mix view and video switching were not exercised.
+
 ## v0.4.2 — 2026-09-08
 
 ### Fixed
