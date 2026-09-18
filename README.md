@@ -51,7 +51,7 @@ spicetify restore
 
 Open lyrics with the button on the player or **F2**. Hover over the top of the lyrics pane to reveal the controls; keyboard focus reveals them too.
 
-**Auto** checks AMLL, lrclib and Spotify together, choosing word-timed lyrics over line-timed lyrics, then plain text. You can also choose a source yourself. Use **− / +** to adjust timing in 50 ms steps, **Reset timing** to undo an adjustment, or **Retry** to request fresh lyrics. Timing is saved separately for each track.
+**Auto** checks AMLL, Spotify and lrclib together, choosing word-timed lyrics over line-timed lyrics, then plain text. For equal timing precision, it prefers AMLL, then Spotify, then lrclib. You can also choose a source yourself. Use **− / +** to adjust timing in 50 ms steps, **Reset timing** to undo an adjustment, or **Retry** to request fresh lyrics. Timing is saved separately for each track.
 
 Click a lyric line to seek to it. Scroll to read ahead without being pulled back; **Back to current line** resumes following. **F3**, or the player’s focus button, hides the surrounding panels. **Escape** brings them back.
 
@@ -81,7 +81,7 @@ Open the miniplayer with the small window icon on the player. Its Lyrics and Que
 
 ### Jam
 
-Open **Friends**, then expand **Jam**. Active sessions show their participants. **Copy invite link** shares the invitation through your clipboard; **QR code** shows a code for nearby friends to scan. QR codes are generated locally.
+Open **Friends**, then expand **Jam**. Active sessions show their participants. **Copy invite link** shares the invitation through your clipboard; an album-accented QR code appears automatically for nearby friends to scan. Click the code to enlarge it, then click again or press **Escape** to shrink it. QR codes are generated locally.
 
 Hosts can remove participants or end a Jam; guests can leave. These actions ask for confirmation inside the card. The shortcut in **Devices** opens the same Jam view. Availability depends on Spotify’s support for your account and client.
 

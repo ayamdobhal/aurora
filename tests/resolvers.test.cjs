@@ -52,6 +52,16 @@ test("lyrics detection is scoped to main content", () => {
     '<div data-testid="lyrics-container"></div>';
   assert.ok(r.getSpotifyLyricsContainer());
 });
+test("Spotify 1.3 lyrics route detects hashed content and stops matching after navigation", () => {
+  w.document.body.innerHTML = '<div class="Root__main-view"><div class="main-view-container"><main class="hashed"><div class="changed-again"></div></main></div><div id="lyrics-slot"></div></div><div class="Root__lyrics-cinema"></div>';
+  const location = { pathname: '/lyrics' };
+  w.Spicetify = { Platform: { History: { location } } };
+  assert.equal(r.getSpotifyLyricsContainer(), w.document.querySelector('.main-view-container'));
+  location.pathname = '/album/example';
+  assert.equal(r.getSpotifyLyricsContainer(), null);
+  location.pathname = '/lyrics/';
+  assert.ok(r.getSpotifyLyricsContainer());
+});
 test("fiber traversal tolerates throwing predicates and cycles", () => {
   const el = w.document.body;
   const fiber = {};

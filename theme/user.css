@@ -240,6 +240,14 @@ button[role="checkbox"][aria-checked="true"] > span {
   display: none !important;
 }
 
+/* Spotify 1.3 hashes playlist tint layers. Match the empty background
+   siblings structurally, leaving artwork and header content intact. */
+.Root__main-view [data-testid="playlist-page"] > div[style*="background-color"]:empty,
+.Root__main-view [data-testid="playlist-page"] .main-entityHeader-container > div[style*="background-color"]:empty,
+.Root__main-view [data-testid="playlist-page"] .main-entityHeader-container > div[style*="background-color"]:empty + div:empty {
+  display: none !important;
+}
+
 /* Kill --background-base inside the main view — playlist/artist/album page
    wrappers use it as their fill. Sidebars override it locally already. */
 .Root__main-view {
@@ -365,6 +373,7 @@ input.x-searchInput-searchInputInput {
 }
 
 /* Home page header has an inline-styled accent bg — force transparent */
+.Root__main-view div[style*="background-color"]:empty:has(~ [data-testid="home-page"]),
 .main-home-homeHeader,
 .main-home-homeHeader *,
 [class*="home-header" i],
@@ -483,6 +492,13 @@ a[href^="/genre/podcasts-"] {
    over. This avoids blanking any reused lyrics component outside the route. */
 .Root__main-view .lyrics-lyrics-container > * {
   display: none !important;
+}
+
+/* Spotify 1.3 removed the named lyrics container. Keep its routed content
+   mounted but hidden while Aurora's sibling lyrics slot is displayed. */
+body.on-lyrics-route .Root__main-view > .main-view-container {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* Show the slot only for the main-view lyrics route. The scoped :has() keeps
@@ -2527,12 +2543,20 @@ img.crp-cover { display: block; object-fit: cover; isolation: isolate; backface-
 img.crp-cover:not([src]) { visibility: hidden; }
 /* Friends already has a dedicated sidebar tab. Keep unrelated native controls. */
 :is(.Root__globalNav, #global-nav-bar) :is(button[data-testid="buddy-feed-toggle"], button[aria-label="Listening activity" i], button[aria-label="Friend Activity" i]) { display: none !important; }
-.aurora-jam-qr { margin: 12px 0 0; padding: 10px; border-radius: 10px; background: #fff; color: #111; text-align: center; }
+/* Use the album accent as the QR background, including its quiet zone. */
+.aurora-jam .aurora-jam-qr { margin: 12px 0 0; padding: 0; background: transparent; text-align: center; }
 .aurora-jam-qr[hidden] { display: none; }
-.aurora-jam-qr svg { display: block; width: 100%; max-width: 240px; height: auto; margin: 0 auto; }
-.aurora-jam-qr svg rect { fill: #fff; }
-.aurora-jam-qr svg path { fill: #000; }
-.aurora-jam-qr figcaption { margin-top: 6px; font-size: 11px; color: #111; }
+.aurora-jam button.aurora-jam-qr-toggle,
+.aurora-jam button.aurora-jam-qr-toggle:hover:not(:disabled) {
+  display: block; width: 112px; max-width: 100%; margin: 0 auto; padding: 0;
+  border: 0; border-radius: 8px; overflow: hidden; background: var(--aurora-accent-fill);
+  box-shadow: none; translate: none; cursor: zoom-in;
+}
+.aurora-jam .aurora-jam-qr.is-expanded button.aurora-jam-qr-toggle { width: 240px; cursor: zoom-out; }
+.aurora-jam-qr svg { display: block; width: 100%; height: auto; }
+.aurora-jam-qr svg rect { fill: var(--aurora-accent-fill); }
+.aurora-jam-qr svg path { fill: var(--aurora-on-accent); }
+.aurora-jam-qr figcaption { margin-top: 6px; font-size: 11px; color: var(--aurora-text-secondary); }
 
 /* Search: a quiet glass surface, with stable result and collection preview columns. */
 .command-palette { padding: clamp(24px, 10vh, 100px) 20px 24px; box-sizing: border-box; }

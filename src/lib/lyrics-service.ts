@@ -182,13 +182,35 @@ export type Lyrics =
     } catch (error) { throw error; }
   }
 
+  type SpotifyLyricsResponse = {
+    lyrics?: { syncType?: string; lines?: { startTimeMs: string; words: string }[] };
+  };
+  type SpotifyLyricsRequest = {
+    withHost(host: string): SpotifyLyricsRequest;
+    withPath(path: string): SpotifyLyricsRequest;
+    withQueryParameters(query: Record<string, string>): SpotifyLyricsRequest;
+    withHeaders(headers: { key: string; value: string }[]): SpotifyLyricsRequest;
+    send(): Promise<{ body: SpotifyLyricsResponse }>;
+  };
   async function fetchFromSpotify(uri: string): Promise<Lyrics | null> {
     try {
       const trackId = uri.split(":")[2];
       const url = `https://spclient.wg.spotify.com/color-lyrics/v2/track/${trackId}?format=json&market=from_token`;
-      const res = await withTimeout(Spicetify.CosmosAsync.get(url, null, {
-        "app-platform": "WebPlayer",
-      }));
+      // Spotify 1.3 no longer resolves this HTTPS endpoint through Cosmos.
+      // Its request builder supplies the current session's auth and market.
+      const builder = (Spicetify.Platform as unknown as {
+        RequestBuilder?: { build(): SpotifyLyricsRequest };
+      }).RequestBuilder;
+      const res = builder?.build
+        ? (await withTimeout(builder.build()
+            .withHost('https://spclient.wg.spotify.com')
+            .withPath(`/color-lyrics/v2/track/${trackId}`)
+            .withQueryParameters({ format: 'json' })
+            .withHeaders([{ key: 'app-platform', value: 'WebPlayer' }])
+            .send())).body
+        : await withTimeout(Spicetify.CosmosAsync.get(url, null, {
+            "app-platform": "WebPlayer",
+          }));
       if (!res?.lyrics?.lines?.length) return null;
       const { syncType, lines } = res.lyrics;
       if (syncType === "LINE_SYNCED") {
@@ -245,7 +267,7 @@ export function requestLyrics(track: Track, provider = preferences().provider, r
   const request = (async (): Promise<LyricsResult> => {
     if (!track.uri.startsWith('spotify:track:')) return { lyrics: { type: 'none' }, provider };
     const meta = track.metadata || {};
-    const providers: Exclude<Provider, 'auto'>[] = provider === 'auto' ? ['amll','lrclib','spotify'] : [provider];
+    const providers: Exclude<Provider, 'auto'>[] = provider === 'auto' ? ['amll','spotify','lrclib'] : [provider];
     // Launch every selected provider immediately; completion order never decides quality.
     const results = await Promise.allSettled(providers.map(async source => {
       const lyrics = await withTimeout(source === 'amll' ? fetchFromAMLL(track.uri) : source === 'spotify' ? fetchFromSpotify(track.uri)
@@ -256,7 +278,7 @@ export function requestLyrics(track: Track, provider = preferences().provider, r
     for (const result of results) {
       if (result.status !== 'fulfilled' || !result.value.lyrics) continue;
       const rank = precision(result.value.lyrics);
-      // Provider order is only a deterministic tie-breaker (AMLL, lrclib, Spotify).
+      // Provider order is only a deterministic tie-breaker (AMLL, Spotify, lrclib).
       if (rank > score) { best = {lyrics: result.value.lyrics, provider: result.value.provider}; score = rank; }
     }
     return best ?? { lyrics: { type: results.some(r => r.status === 'rejected') ? 'error' : 'none' }, provider };

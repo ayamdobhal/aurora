@@ -32,7 +32,7 @@ test('Auto starts all three providers concurrently and chooses word timing regar
  const p=f.w.eval(code+';Service;'),a=deferred(),l=deferred(),s=deferred(),calls=[];
  f.w.fetch=url=>{calls.push(url.includes('githubusercontent')?'amll':'lrclib');return url.includes('githubusercontent')?a.promise:l.promise};
  f.w.Spicetify.CosmosAsync.get=()=>{calls.push('spotify');return s.promise};
- const result=p.requestLyrics(f.player.data.item);assert.deepEqual(calls,['amll','lrclib','spotify']);
+ const result=p.requestLyrics(f.player.data.item);assert.deepEqual(calls,['amll','spotify','lrclib']);
  s.resolve({lyrics:{syncType:'LINE_SYNCED',lines:[{startTimeMs:'1000',words:'Spotify line'}]}});
  a.resolve({ok:true,text:async()=>'<tt><p begin="1s">AMLL line</p></tt>'});
  l.resolve({ok:true,json:async()=>({syncedLyrics:'[00:01.00]<00:01.00>Word <00:01.50>timing'})});
@@ -48,6 +48,20 @@ test('line timing outranks plain lyrics; failed providers do not discard usable 
  assert.equal((await p.requestLyrics(f.player.data.item)).lyrics.type,'unsynced');
  }finally{f.dom.window.close()}
 });
+test('Auto prefers Spotify line timing, then lrclib line timing, then plain lyrics, then none',async()=>{
+ const f=fixture();try{
+ const p=f.w.eval(code+';Service;');let lrclib={syncedLyrics:'[00:01.00]lrclib'},spotify={lyrics:{syncType:'LINE_SYNCED',lines:[{startTimeMs:'1000',words:'Spotify'}]}};
+ f.w.fetch=async url=>url.includes('githubusercontent')?{ok:false,status:404}:{ok:true,json:async()=>lrclib};
+ f.w.Spicetify.CosmosAsync.get=async()=>spotify;
+ const request=()=>p.requestLyrics(f.player.data.item,'auto',true);
+ assert.equal((await request()).provider,'spotify');
+ spotify={lyrics:{syncType:'UNSYNCED',lines:[{words:'Plain Spotify'}]}};
+ const timed=await request();assert.equal(timed.provider,'lrclib');assert.equal(timed.lyrics.type,'synced');
+ spotify={};assert.equal((await request()).provider,'lrclib');
+ lrclib={plainLyrics:'Plain lrclib'};assert.equal((await request()).lyrics.type,'unsynced');
+ lrclib={};assert.equal((await request()).lyrics.type,'none');
+ }finally{f.dom.window.close()}
+});
 test('equal precision uses deterministic provider priority and explicit sources stay exclusive',async()=>{
  const f=fixture();try{
  const p=f.w.eval(code+';Service;'),calls=[];
@@ -55,5 +69,18 @@ test('equal precision uses deterministic provider priority and explicit sources 
  f.w.Spicetify.CosmosAsync.get=async()=>({lyrics:{syncType:'LINE_SYNCED',lines:[{startTimeMs:'1000',words:'Spotify'}]}});
  assert.equal((await p.requestLyrics(f.player.data.item)).provider,'amll');calls.length=0;
  assert.equal((await p.requestLyrics(f.player.data.item,'lrclib')).provider,'lrclib');assert.equal(calls.length,1);assert.ok(calls[0].includes('lrclib'));
+ }finally{f.dom.window.close()}
+});
+
+test('Spotify 1.3 uses the authenticated request builder when Cosmos cannot resolve lyrics',async()=>{
+ const f=fixture();try{
+ const p=f.w.eval(code+';Service;'),calls=[];
+ const request={send:async()=>({body:{lyrics:{syncType:'LINE_SYNCED',lines:[{startTimeMs:'1000',words:'Native Spotify lyrics'}]}}})};
+ for(const name of ['withHost','withPath','withQueryParameters','withHeaders'])request[name]=value=>{calls.push([name,JSON.parse(JSON.stringify(value))]);return request};
+ f.w.Spicetify.Platform.RequestBuilder={build:()=>request};
+ f.w.Spicetify.CosmosAsync.get=()=>{assert.fail('Cosmos must not be used when RequestBuilder is available')};
+ const result=await p.requestLyrics(f.player.data.item,'spotify');
+ assert.equal(result.provider,'spotify');assert.equal(result.lyrics.type,'synced');assert.equal(result.lyrics.lines[0].text,'Native Spotify lyrics');
+ assert.deepEqual(calls,[['withHost','https://spclient.wg.spotify.com'],['withPath',`/color-lyrics/v2/track/${f.player.data.item.uri.split(':')[2]}`],['withQueryParameters',{format:'json'}],['withHeaders',[{key:'app-platform',value:'WebPlayer'}]]]);
  }finally{f.dom.window.close()}
 });

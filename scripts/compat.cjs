@@ -78,6 +78,16 @@ const fs = require("node:fs");
       });
       checks.push({name:'Mix key badge structure and contrast',status:badges.length?(readable?'pass':'fail'):cells.some(e=>e.textContent.trim())?'fail':'not-observed',patch:'theme/user.css (Mix key badge foreground; open a populated Mix view)'});
       const sp = globalThis.Spicetify;
+      const lyricsRoute = /^\/lyrics\/?$/.test(sp?.Platform?.History?.location?.pathname || '') || !!r.getSpotifyLyricsContainer();
+      const lyricsSlot = document.querySelector('#lyrics-slot');
+      const lyricsRect = lyricsSlot?.getBoundingClientRect();
+      checks.push({
+        name: 'Aurora lyrics replaces the native lyrics page',
+        status: lyricsRoute
+          ? lyricsSlot && lyricsRect?.width > 0 && lyricsRect?.height > 0 && getComputedStyle(lyricsSlot).visibility === 'visible' ? 'pass' : 'fail'
+          : 'not-observed',
+        patch: 'src/lib/resolvers.ts and theme/user.css (open lyrics to check)',
+      });
       if (!sp)
         checks.push({
           name: "Spicetify installation",

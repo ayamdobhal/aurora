@@ -194,10 +194,18 @@ const rgb = (text) => text.match(/[\d.]+/g).slice(0,3).map(Number);
       assert.equal(await fixture.getByRole('button',{name:'Listening activity',includeHidden:true}).isVisible(),false);
       assert.equal(await fixture.getByRole('button',{name:'Notifications'}).isVisible(),true);
       await fixture.locator('.crp-tab[data-tab="friends"]').click();
-      await fixture.getByRole('button',{name:'Show Jam invite QR code'}).click();
+      const qrToggle=fixture.getByRole('button',{name:'Enlarge Jam invite QR code'});
+      assert.ok(await qrToggle.isVisible(),'QR preview is visible without a separate button');
+      assert.ok(Math.abs((await qrToggle.boundingBox()).width-112)<1,'QR starts compact');
+      await qrToggle.click();
       assert.ok(await fixture.locator('.aurora-jam-qr').evaluate(e=>{
         const r=e.querySelector('svg').getBoundingClientRect();return r.width>=140 && Math.abs(r.width-r.height)<1 && e.scrollWidth<=e.clientWidth;
       }),`Jam QR remains square and fits ${width}px sidebar`);
+      assert.equal(await fixture.locator('.aurora-jam-qr svg rect').evaluate(e=>getComputedStyle(e).fill),'rgb(255, 255, 255)');
+      await fixture.evaluate(()=>document.documentElement.style.setProperty('--aurora-accent-fill','#e5ad63'));
+      assert.equal(await fixture.locator('.aurora-jam-qr svg rect').evaluate(e=>getComputedStyle(e).fill),'rgb(229, 173, 99)','QR background follows the album accent');
+      await fixture.getByRole('button',{name:'Shrink Jam invite QR code'}).press('Escape');
+      assert.equal(await qrToggle.getAttribute('aria-expanded'),'false');
       if(width===340) await fixture.screenshot({path:'reports/phase-1/jam-qr-fixture.png'});
       await fixture.close();
     }

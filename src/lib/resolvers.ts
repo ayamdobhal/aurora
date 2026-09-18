@@ -296,6 +296,13 @@ export function getSpotifyLyricsContainer(): HTMLElement | null {
     logResolved("getSpotifyLyricsContainer", "class", byClass);
     return byClass;
   }
+  // Spotify 1.3 uses hashed lyrics markup but keeps the /lyrics route.
+  // Older clients can redirect that route, so retain the DOM checks above.
+  const history = typeof Spicetify === "undefined" ? undefined : Spicetify.Platform?.History;
+  const pathname = (history as { location?: { pathname?: string } } | undefined)?.location?.pathname;
+  if (pathname === '/lyrics' || pathname === '/lyrics/') {
+    return qs<HTMLElement>('.main-view-container', main);
+  }
   return null;
 }
 
