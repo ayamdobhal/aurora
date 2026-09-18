@@ -5,7 +5,7 @@
     "check": "tsc --noEmit",
     "build": "bash scripts/build.sh",
     "test": "node --test tests/*.test.cjs",
-    "test:visual": "node scripts/test-theme-visual.cjs && node scripts/test-search-visual.cjs && node scripts/test-header-visual.cjs",
+    "test:visual": "node scripts/test-theme-visual.cjs && node scripts/test-search-visual.cjs && node scripts/test-header-visual.cjs && node scripts/test-window-chrome-visual.cjs",
     "compat": "node scripts/compat.cjs"
   },
   "devDependencies": {
@@ -20,5 +20,5 @@
   "dependencies": {
     "qrcode": "1.5.4"
   },
-  "version": "0.4.3"
+  "version": "0.4.4"
 }

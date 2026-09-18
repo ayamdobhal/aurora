@@ -2233,7 +2233,8 @@ html.aurora-hide-titlebar > body::after { display: none !important; }
 /* Spotify mounts an empty 135px-wide sibling after the profile/actions on
    Windows to reserve the native caption buttons. Only remove that spacer;
    the populated toolbar shares its class and must remain visible. */
-html.aurora-hide-titlebar .main-globalNav-contentRight > .main-topBar-topbarContentRight:empty {
+html.aurora-hide-titlebar .main-globalNav-contentRight > .main-topBar-topbarContentRight:empty,
+html.aurora-hide-titlebar .main-globalNav-contentRightSpacer:empty {
   display: none !important;
 }
 

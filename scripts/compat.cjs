@@ -78,6 +78,16 @@ const fs = require("node:fs");
       });
       checks.push({name:'Mix key badge structure and contrast',status:badges.length?(readable?'pass':'fail'):cells.some(e=>e.textContent.trim())?'fail':'not-observed',patch:'theme/user.css (Mix key badge foreground; open a populated Mix view)'});
       const sp = globalThis.Spicetify;
+      const titlebarHidden = document.documentElement.classList.contains('aurora-hide-titlebar');
+      const navRight = document.querySelector('.main-globalNav-contentRight');
+      // Inspect empty elements by geometry so another spacer rename is caught.
+      const captionGap = navRight && [...navRight.querySelectorAll('div:empty')]
+        .some(el => el.getBoundingClientRect().width >= 80);
+      checks.push({
+        name: 'Windows caption spacer removed',
+        status: titlebarHidden ? navRight && !captionGap ? 'pass' : 'fail' : 'not-observed',
+        patch: 'theme/user.css (Windows navigation spacer; run with titlebar hidden on Windows)',
+      });
       const lyricsRoute = /^\/lyrics\/?$/.test(sp?.Platform?.History?.location?.pathname || '') || !!r.getSpotifyLyricsContainer();
       const lyricsSlot = document.querySelector('#lyrics-slot');
       const lyricsRect = lyricsSlot?.getBoundingClientRect();

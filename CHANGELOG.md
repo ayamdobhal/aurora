@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## v0.4.4 — 2026-09-19
+
+### Fixed
+- Remove Spotify 1.3's renamed Windows caption-button spacer when Aurora hides the title bar. Preserve the profile controls and restore native spacing with F8.
+- Add rendered regression coverage for current and legacy spacers across window widths and zoom levels, plus a live compatibility check for unexpected empty navigation gaps.
+
+### Validation
+- Passed the rendered Windows navigation regression across current/legacy markup, two window widths, and two zoom levels, plus the Windows titlebar behavior tests.
+- Native Windows desktop verification remains pending; the rendered test runs in Chromium and is included in CI.
+
 ## v0.4.3 — 2026-09-19
 
 ### Fixed
